@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { BookOpen, Search } from 'lucide-react';
 import Swatch from './Swatch.jsx';
 
 export default function LegendPanel({ legend, swatches, activeKey, onSelect }) {
@@ -40,6 +40,7 @@ export default function LegendPanel({ legend, swatches, activeKey, onSelect }) {
               <span className="min-w-0 flex-1 truncate text-sm text-slate-300" title={e.name}>
                 {e.name}
               </span>
+              {e.report && <BookOpen size={12} className="shrink-0 text-slate-500" aria-label="Full description available" />}
               <span className="shrink-0 text-xs tabular-nums text-slate-500">{e.labelCount}</span>
             </button>
           </li>

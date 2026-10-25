@@ -10,10 +10,11 @@
 
 import { extractTextItems, splitWords } from './pdf/textItems.js';
 import { extractVectorShapes } from './pdf/vectorShapes.js';
-import { isUnitCodeShape, mergeSubscripts } from './units/unitCodes.js';
+import { isUnitCodeShape, mergeSplitCodes, mergeSubscripts } from './units/unitCodes.js';
 import { findLegendEntries } from './legend/legend.js';
 import { findMapLabels, findMapRegion } from './labels/mapLabels.js';
 import { analyzeColors } from './color/index.js';
+import { bboxCenter, bboxContainsPoint } from './geometry.js';
 
 export const RESULT_VERSION = 1;
 
@@ -58,11 +59,19 @@ export async function parseMapPage(page, { OPS, onProgress = () => {}, sampler =
   onProgress('Finding map labels');
   const mapRegion = findMapRegion({ images: shapes.images, fills: shapes.fills, swatches: legend.swatches, page: pageSize });
   const legendKeys = new Set(legend.entries.map((e) => e.key));
-  const { labels, unmatched } = findMapLabels(items, {
+  const codeItems = mergeSplitCodes(items, legendKeys);
+  const { labels, unmatched } = findMapLabels(codeItems, {
     legendKeys: legendKeys.size ? legendKeys : null,
     swatchLabels: legend.swatchLabels,
     region: mapRegion.bbox,
   });
+  // Unit codes elsewhere on the sheet: cross-sections, the correlation chart. Kept apart from
+  // `labels` so the map's counts and color check stay about the map frame.
+  const plateLabels = legendKeys.size
+    ? findMapLabels(codeItems, { legendKeys, swatchLabels: legend.swatchLabels, region: null }).labels
+      .filter((l) => !bboxContainsPoint(mapRegion.bbox, ...bboxCenter(l.codeBbox)))
+      .map((l, i) => ({ ...l, id: `p${i}`, other: true }))
+    : [];
 
   onProgress('Checking colors and patterns');
   const ignoreColors = shapes.images.filter((im) => im.kind === 'mask' && im.color).map((im) => im.color);
@@ -90,6 +99,7 @@ export async function parseMapPage(page, { OPS, onProgress = () => {}, sampler =
     mapRegion,
     legend: legend.entries.map((e) => ({ ...e, labelCount: counts[e.key] || 0 })),
     labels,
+    plateLabels,
     unmatchedCodes: unmatched,
     color: {
       primary: color.primary,

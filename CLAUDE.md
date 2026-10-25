@@ -43,7 +43,9 @@ you change UI or anything in `src/lib/`.
 
 ```
 src/lib/                 environment-agnostic parsing pipeline (runs in browser AND Node)
-  pipeline.js            orchestrator: page → {legend, labels, color, warnings}
+  document.js            whole publication: finds the plate page, attaches report text to its legend
+  pipeline.js            orchestrator: page → {legend, labels, plateLabels, color, warnings}
+  report/descriptions.js report text (two columns) → full unit descriptions; matches them to the plate legend
   pdf/textItems.js       positioned words from the text layer (+ bold detection)
   pdf/vectorShapes.js    filled paths, paints (solid/pattern), images, short strokes
   units/unitCodes.js     unit-code shape, age prefixes, subscript merging (Qt + ₁ → Qt1)
@@ -58,6 +60,7 @@ server/                  Express API: mock/live modes; key only in live mode
 scripts/                 CLI tools (parse, color lab) + Node pdf.js helper
 tests/unit, tests/fixtures, tests/server, tests/e2e
 fixtures/pikeview/       real public map + expected-units.json (ground truth)
+fixtures/manitou/        whole report (46 pages) + plate as page 47, with expected-units.json
 ```
 
 ## Conventions

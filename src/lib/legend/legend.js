@@ -20,6 +20,10 @@ import { groupLines } from '../pdf/textItems.js';
 import { ageForCode, isUnitCodeShape, normalizeCode } from '../units/unitCodes.js';
 import { paintKey } from '../color/paint.js';
 
+// Legend text lines stop at a horizontal gap wider than this many font sizes:
+// beyond it is a different column (map symbols, correlation chart).
+const LINE_MAX_GAP = 4;
+
 const SWATCH_LIMITS = { minW: 10, maxW: 150, minH: 6, maxH: 80, minRectangularity: 0.85 };
 
 /** Rectangular, swatch-sized filled shapes. */
@@ -34,12 +38,44 @@ export function findSwatchShapes(fills, limits = SWATCH_LIMITS) {
   });
 }
 
+/**
+ * A code printed INSIDE a legend swatch. Normal unit codes, plus short
+ * all-lowercase ones ("af" artificial fill, "mw" mine waste): those are only
+ * trustworthy because of where they sit, so they're not accepted elsewhere.
+ */
+export const isSwatchCode = (str) =>
+  isUnitCodeShape(str) || /^[a-z]{2,3}$/.test(str) || /^[A-Z]{2,3}[a-z]{1,4}[0-9]?$/.test(str);
+
+/**
+ * Codes like "TRPl" are sometimes typeset as two text runs ("T" + "RPl").
+ * Inside one swatch, join a short all-caps run with the run touching its right.
+ */
+function mergeSwatchParts(items, swatches) {
+  const consumed = new Set();
+  const merged = [];
+  for (const s of swatches) {
+    const inside = items
+      .filter((it) => !it.bold && Math.abs(it.angle) <= 0.05 && bboxContainsPoint(s.bbox, ...bboxCenter(it)))
+      .sort((a, b) => a.x0 - b.x0);
+    if (inside.length !== 2) continue;
+    const [a, b] = inside;
+    if (!/^[A-Z]{1,2}$/.test(a.str) || Math.abs(a.baseline - b.baseline) > 0.5 * a.fontSize) continue;
+    if (b.x0 - a.x1 > 0.6 * a.fontSize || !isSwatchCode(a.str + b.str)) continue;
+    consumed.add(a);
+    consumed.add(b);
+    merged.push({
+      ...a, str: a.str + b.str, x1: Math.max(a.x1, b.x1), y0: Math.min(a.y0, b.y0), y1: Math.max(a.y1, b.y1), parts: [a, b],
+    });
+  }
+  return [...items.filter((it) => !consumed.has(it)), ...merged];
+}
+
 /** Pair code-shaped words with the swatch rectangle they sit in. */
-export function findSwatchLabels(items, swatches) {
+export function findSwatchLabels(rawItems, swatches) {
   const out = [];
-  for (const it of items) {
+  for (const it of mergeSwatchParts(rawItems, swatches)) {
     if (Math.abs(it.angle) > 0.05) continue;
-    if (!isUnitCodeShape(it.str)) continue;
+    if (!isSwatchCode(it.str)) continue;
     const base = it.parts ? it.parts[0] : it; // center of the code, not the subscript
     const [cx, cy] = bboxCenter(base);
     let best = null;
@@ -57,6 +93,43 @@ export function findSwatchLabels(items, swatches) {
   return out;
 }
 
+/**
+ * Swatches drawn as outlines on white paper (dikes, veins, contact-metamorphic
+ * units) have no filled rectangle to find. If a code sits in the same swatch
+ * column as filled swatches (x-aligned with at least three of them), treat the
+ * code's cell as a swatch with no paint. The bold-text-to-the-right test in
+ * findLegendEntries then decides whether it is really an entry.
+ */
+export function findTextOnlySwatchLabels(items, swatches, found) {
+  const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+  const cols = [];
+  for (const sl of found) {
+    const b = sl.swatch.bbox;
+    const col = cols.find((k) => Math.abs(k.x0 - b.x0) < 3);
+    if (col) col.boxes.push(b);
+    else cols.push({ x0: b.x0, boxes: [b] });
+  }
+  const out = [];
+  const taken = new Set(found.map((f) => f.item));
+  for (const col of cols.filter((k) => k.boxes.length >= 3)) {
+    const w = median(col.boxes.map((b) => b.x1 - b.x0));
+    const h = median(col.boxes.map((b) => b.y1 - b.y0));
+    const yMin = Math.min(...col.boxes.map((b) => b.y0)) - 4 * h;
+    const yMax = Math.max(...col.boxes.map((b) => b.y1)) + 4 * h;
+    for (const it of items) {
+      if (taken.has(it) || it.bold || Math.abs(it.angle) > 0.05) continue;
+      if (!isSwatchCode(it.str)) continue;
+      const [cx, cy] = bboxCenter(it);
+      if (cx < col.x0 || cx > col.x0 + w || cy < yMin || cy > yMax) continue;
+      if (swatches.some((s) => bboxContainsPoint(s.bbox, cx, cy))) continue;
+      taken.add(it);
+      const bbox = { x0: col.x0, x1: col.x0 + w, y0: cy - h / 2, y1: cy + h / 2 };
+      out.push({ item: it, swatch: { bbox, paint: null, order: -1, textOnly: true } });
+    }
+  }
+  return out;
+}
+
 const isHeading = (text) =>
   text.length >= 8 && text === text.toUpperCase() && /[A-Z]{4,}/.test(text);
 
@@ -67,7 +140,7 @@ const isHeading = (text) =>
  * document) contains the joined word ("massive"), we treat the hyphen as
  * hyphenation and drop it; otherwise we keep it.
  */
-export function dehyphenateJoin(lines, corpus = null) {
+export function dehyphenateJoin(lines, corpus = null, { aggressive = false } = {}) {
   let out = '';
   for (const raw of lines) {
     const line = raw.trim();
@@ -83,7 +156,10 @@ export function dehyphenateJoin(lines, corpus = null) {
       const head = out.match(/([A-Za-z]+)-$/)[1];
       const tail = line.match(/^[A-Za-z]+/)?.[0] || '';
       const joined = (head + tail).toLowerCase();
-      out = corpus && tail && corpus.has(joined) ? out.slice(0, -1) + line : out + line;
+      // aggressive: long prose where most words occur only once, so "pro-|duces" is
+      // hyphenation whenever the left fragment is not a word of its own.
+      const hyphenation = corpus && tail && (corpus.has(joined) || (aggressive && !corpus.has(head.toLowerCase())));
+      out = hyphenation ? out.slice(0, -1) + line : out + line;
     } else {
       out += ' ' + line;
     }
@@ -147,13 +223,22 @@ export function parseEntryText(fullText, header = '') {
   head = head.replace(/\s*[—–-]+\s*$/, '').trim();
   rest = rest.replace(/^\s*[—–-]+\s*/, '').trim();
 
+  // "(?)" is a doubt marker inside an age, not a nested parenthesis.
+  const masked = head.replace(/\(\?\)/g, '[?]');
+  const unmask = (t) => t.replace(/\[\?\]/g, '(?)');
   let name = head;
   let ageText = null;
-  const ageMatch = head.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+  const ageMatch = masked.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
   if (ageMatch) {
-    name = ageMatch[1].trim();
-    ageText = ageMatch[2].trim();
+    name = unmask(ageMatch[1]).trim();
+    ageText = unmask(ageMatch[2]).trim();
+  } else {
+    // "X Member (Mississippian) and Y Formation (Devonian), undifferentiated":
+    // keep the whole name, collect the ages.
+    const ages = [...masked.matchAll(/\(([^()]*)\)/g)].map((m) => unmask(m[1]).trim());
+    if (ages.length > 1) ageText = ages.join(' and ');
   }
+  name = name.replace(/[\s,;]+$/, '');
   return { name, ageText, description: rest };
 }
 
@@ -166,7 +251,11 @@ export function parseEntryText(fullText, header = '') {
 export function findLegendEntries(items, fills) {
   const swatches = findSwatchShapes(fills);
   const swatchLabels = findSwatchLabels(items, swatches);
-  const labelItems = new Set(swatchLabels.map((s) => s.item));
+  const textOnly = findTextOnlySwatchLabels(items, swatches, swatchLabels);
+  swatchLabels.push(...textOnly);
+  const allSwatches = [...swatches, ...textOnly.map((t) => t.swatch)];
+  // A merged code ("T"+"RPl") must also take its original runs out of the free text.
+  const labelItems = new Set(swatchLabels.flatMap((s) => [s.item, ...(s.item.parts || [])]));
   const freeItems = items.filter((it) => !labelItems.has(it) && Math.abs(it.angle) < 0.05);
   // Every whole word in the document, for hyphenation decisions.
   const corpus = new Set();
@@ -226,7 +315,7 @@ export function findLegendEntries(items, fills) {
       const blockItems = freeItems.filter((it) =>
         it.x0 >= s.x0 - 3 && it.x1 <= colRight + 6 &&
         it.y0 >= s.y0 - 3 && it.baseline < yStop);
-      const lines = groupLines(blockItems);
+      const lines = groupLines(blockItems, { maxGap: LINE_MAX_GAP });
 
       const kept = [];
       let prev = null;
@@ -252,10 +341,13 @@ export function findLegendEntries(items, fills) {
       // Correlation-chart boxes can sit next to bold age labels ("Paleocene",
       // "TERTIARY"). A real entry has a "Name—" dash or an actual description.
       const hasDash = /[—–]/.test(fullText.slice(0, 250));
-      if (!hasDash && parsed.description.length < 20) return;
+      // Some plates print only "Name (Age)" next to each swatch (the prose lives
+      // in the accompanying report), so a parenthesised age in the bold header
+      // is enough too.
+      const strong = hasDash || parsed.description.length >= 20 || Boolean(parsed.ageText);
       const code = c.item.str.trim();
       colEntries.push({
-        _meta: { nameX: c.nameX, colRight, colX: col.x },
+        _meta: { nameX: c.nameX, colRight, colX: col.x, weak: !strong },
         code,
         key: normalizeCode(code),
         age: ageForCode(code),
@@ -277,7 +369,12 @@ export function findLegendEntries(items, fills) {
         source: 'text',
       });
     });
-    assignHierarchy(colEntries, freeItems, swatches);
+    // Bare-name entries ("upper unit", a sub-unit with no age) are only believed
+    // in a swatch column that already holds well-formed entries; a lone one is
+    // more likely a correlation-chart box beside an age label.
+    const strongCount = colEntries.filter((e) => !e._meta.weak).length;
+    if (strongCount < 3) colEntries.splice(0, colEntries.length, ...colEntries.filter((e) => !e._meta.weak));
+    assignHierarchy(colEntries, freeItems, allSwatches);
     for (const e of colEntries) {
       delete e._meta;
       entries.push(e);
@@ -290,7 +387,7 @@ export function findLegendEntries(items, fills) {
     const prev = byKey.get(e.key);
     if (!prev || e.description.length > prev.description.length) byKey.set(e.key, e);
   }
-  return { entries: [...byKey.values()], swatchLabels, swatches };
+  return { entries: [...byKey.values()], swatchLabels, swatches: allSwatches };
 }
 
 /**
@@ -323,7 +420,7 @@ function assignHierarchy(colEntries, freeItems, swatches) {
     const lower = prev ? prev.textBbox.y1 : -Infinity;
     const upper = e.swatch.bbox.y0 - 1;
     const between = groupLines(freeItems.filter((it) =>
-      it.x0 >= colX - 6 && it.x1 <= e._meta.colRight + 6 && it.baseline > lower && it.baseline < upper));
+      it.x0 >= colX - 6 && it.x1 <= e._meta.colRight + 6 && it.baseline > lower && it.baseline < upper), { maxGap: LINE_MAX_GAP });
 
     let header = null;
     between.forEach((line, k) => {

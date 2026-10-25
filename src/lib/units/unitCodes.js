@@ -127,3 +127,31 @@ export function mergeSubscripts(items) {
   });
   return out;
 }
+
+/**
+ * Some typesetting splits a code into two text runs ("T" + "RPl" for "TRPl").
+ * Once the legend tells us which codes exist, join touching runs whose
+ * concatenation is a known code. Returns a NEW array; merged items carry `parts`.
+ */
+export function mergeSplitCodes(items, knownKeys) {
+  if (!knownKeys?.size) return items;
+  const heads = items.filter((it) => /^[A-Z]{1,2}$/.test(it.str.trim()));
+  const consumed = new Set();
+  const merged = [];
+  for (const a of heads) {
+    const b = items.find((it) => it !== a && !consumed.has(it) &&
+      Math.abs(it.baseline - a.baseline) <= 0.5 * a.fontSize &&
+      it.x0 - a.x1 >= -0.8 * a.fontSize && it.x0 - a.x1 <= 0.6 * a.fontSize &&
+      knownKeys.has(normalizeCode(a.str.trim() + it.str.trim())));
+    if (!b) continue;
+    consumed.add(a);
+    consumed.add(b);
+    merged.push({
+      ...a,
+      str: a.str.trim() + b.str.trim(),
+      x1: Math.max(a.x1, b.x1), y0: Math.min(a.y0, b.y0), y1: Math.max(a.y1, b.y1),
+      parts: [a, b],
+    });
+  }
+  return merged.length ? [...items.filter((it) => !consumed.has(it)), ...merged] : items;
+}

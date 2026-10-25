@@ -1,0 +1,467 @@
+{
+  "_about": "Ground truth for tests/fixtures/manitou.test.js. Units were produced by the parser, then cross-checked: each plate legend line (name + age, read from the plate page) was compared with the heading of the same unit in the report text (read from pages 12-24), two independent extractions of the same words; all 48 agree. The plate legend has no unit prose, so descriptions come from the report: reportStartsWith is the first words of each full description. Edit this file (not the test) when you verify or correct a unit.",
+  "source": "OF-03-19 Geologic Map of the Manitou Springs 7.5-Minute Quadrangle, El Paso and Teller Counties, Colorado (Colorado Geological Survey, 2003). Public document: report pages 1-46 plus the plate as page 47.",
+  "pdf": "OF-03-19.pdf",
+  "expectations": {
+    "pageCount": 47,
+    "platePage": 47,
+    "mapRegion": {
+      "x0": 50,
+      "y0": 154,
+      "x1": 1334,
+      "y1": 1797,
+      "tolerance": 15
+    },
+    "minMapLabels": 500,
+    "minPlateLabels": 50,
+    "mustBeLabels": [
+      "af",
+      "TRPl",
+      "PIPf",
+      "Ywp",
+      "Qcs"
+    ],
+    "mustNotBeLabels": [
+      "The",
+      "North",
+      "Datum"
+    ],
+    "unmatchedReportCodes": [
+      "Pl"
+    ]
+  },
+  "units": [
+    {
+      "code": "af",
+      "name": "Artificial fill",
+      "ageText": "latest Holocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 12,
+      "reportStartsWith": "Rip rap, engineered fill, and refuse pla"
+    },
+    {
+      "code": "mw",
+      "name": "Mine waste",
+      "ageText": "latest Holocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 12,
+      "reportStartsWith": "Waste rock excavated from mines and pros"
+    },
+    {
+      "code": "Qa",
+      "name": "Stream-channel, flood-plain, and terrace alluvium, undivided",
+      "ageText": "Holocene to late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 12,
+      "reportStartsWith": "Clast-supported, pebble, cobble, and rar"
+    },
+    {
+      "code": "Qa1",
+      "name": "Alluvium one",
+      "ageText": "late Holocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 12,
+      "reportStartsWith": "Yellow to medium-dark-brown, poorly to m"
+    },
+    {
+      "code": "Qa2",
+      "name": "Alluvium two",
+      "ageText": "late to early Holocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 12,
+      "reportStartsWith": "Dark-yellow to dark-brown, poorly to mod"
+    },
+    {
+      "code": "Qg1",
+      "name": "Pediment gravel one",
+      "ageText": "middle Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 13,
+      "reportStartsWith": "Light-red to brown, poorly sorted, moder"
+    },
+    {
+      "code": "Qg2",
+      "name": "Pediment gravel two",
+      "ageText": "middle Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 13,
+      "reportStartsWith": "Medium-red to brown, poorly sorted, mode"
+    },
+    {
+      "code": "Qg3",
+      "name": "Pediment gravel three",
+      "ageText": "middle? to early Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 13,
+      "reportStartsWith": "Red to brown, poorly sorted, moderately "
+    },
+    {
+      "code": "QTg4",
+      "name": "Pediment gravel four",
+      "ageText": "early Pleistocene to late Pliocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 14,
+      "reportStartsWith": "Dark-red to brown, well-sorted, moderate"
+    },
+    {
+      "code": "Qac",
+      "name": "Alluvium and colluvium, undivided",
+      "ageText": "Holocene to late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 14,
+      "reportStartsWith": "Stream channel, terrace, and flood-plain"
+    },
+    {
+      "code": "Qcs",
+      "name": "Colluvium and sheetwash deposits, undivided",
+      "ageText": "Holocene to late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 14,
+      "reportStartsWith": "Weathered bedrock fragments transported "
+    },
+    {
+      "code": "Qf",
+      "name": "Fan deposits",
+      "ageText": "Holocene to late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 15,
+      "reportStartsWith": "Poorly sorted to moderately sorted, matr"
+    },
+    {
+      "code": "Qfy",
+      "name": "Young fan deposits",
+      "ageText": "Holocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 15,
+      "reportStartsWith": "Poorly sorted to moderately sorted, matr"
+    },
+    {
+      "code": "Qfo",
+      "name": "Old fan deposits",
+      "ageText": "late to middle? Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 15,
+      "reportStartsWith": "Poorly sorted to moderately sorted, matr"
+    },
+    {
+      "code": "Qta",
+      "name": "Talus deposits",
+      "ageText": "Holocene to late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 15,
+      "reportStartsWith": "Angular, cobbly and bouldery rubble deri"
+    },
+    {
+      "code": "Qls",
+      "name": "Landslide deposits",
+      "ageText": "Holocene to late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 15,
+      "reportStartsWith": "Heterogeneous deposits consisting of uns"
+    },
+    {
+      "code": "Qp",
+      "name": "Paludal sediments",
+      "ageText": "Holocene to late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 16,
+      "reportStartsWith": "Organic-rich, fine-grained sediments for"
+    },
+    {
+      "code": "Qb",
+      "name": "Block-slope deposits",
+      "ageText": "Holocene to late Plesitocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 16,
+      "reportStartsWith": "Poorly sorted, clast supported, subangul"
+    },
+    {
+      "code": "Qo",
+      "name": "Outwash",
+      "ageText": "late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 16,
+      "reportStartsWith": "Moderately to poorly sorted, clast-suppo"
+    },
+    {
+      "code": "Qm1",
+      "name": "Morainal deposit one",
+      "ageText": "late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 16,
+      "reportStartsWith": "Boulders, cobbles, and gravel set in a s"
+    },
+    {
+      "code": "Qm2",
+      "name": "Morainal deposit two",
+      "ageText": "late Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 16,
+      "reportStartsWith": "Deposit is lithologically and structural"
+    },
+    {
+      "code": "Qm3",
+      "name": "Morainal deposit three",
+      "ageText": "late middle Pleistocene",
+      "parent": null,
+      "group": null,
+      "reportPage": 17,
+      "reportStartsWith": "Deposit is lithologically and structural"
+    },
+    {
+      "code": "Kp",
+      "name": "Pierre Shale",
+      "ageText": "Upper Cretaceous",
+      "parent": null,
+      "group": null,
+      "reportPage": 18,
+      "reportStartsWith": "Medium-gray to black shale with thin int"
+    },
+    {
+      "code": "Kn",
+      "name": "Niobrara Formation",
+      "ageText": "Upper Cretaceous",
+      "parent": null,
+      "group": null,
+      "reportPage": 18,
+      "reportStartsWith": "Consists of resistant-weathering, medium"
+    },
+    {
+      "code": "Kcgg",
+      "name": "Graneros Shale, Greenhorn Limestone, and Carlile Shale, undivided",
+      "ageText": "Upper Cretaceous",
+      "parent": null,
+      "group": null,
+      "reportPage": 18,
+      "reportStartsWith": "Nonresistant-weathering, poorly exposed "
+    },
+    {
+      "code": "Kd",
+      "name": "Dakota Sandstone",
+      "ageText": "Lower Cretaceous",
+      "parent": null,
+      "group": null,
+      "reportPage": 19,
+      "reportStartsWith": "Interbedded tan, yellow, and gray quartz"
+    },
+    {
+      "code": "Kpu",
+      "name": "Purgatoire Formation",
+      "ageText": "Lower Cretaceous",
+      "parent": null,
+      "group": null,
+      "reportPage": 19,
+      "reportStartsWith": "Consists of the basal Lytle Sandstone Me"
+    },
+    {
+      "code": "Jmr",
+      "name": "Morrison Formation and Ralston Creek Formation, undivided",
+      "ageText": "Upper Jurassic",
+      "parent": null,
+      "group": null,
+      "reportPage": 19,
+      "reportStartsWith": "Nonresistant-weathering, variegated clay"
+    },
+    {
+      "code": "TRPl",
+      "name": "Lykins Formation",
+      "ageText": "Lower Triassic? and Upper Permian",
+      "parent": null,
+      "group": null,
+      "reportPage": 19,
+      "reportStartsWith": "Nonresistant- to moderately resistant-we"
+    },
+    {
+      "code": "Plu",
+      "name": "upper unit",
+      "ageText": "Permian",
+      "parent": null,
+      "group": "Lyons Sandstone",
+      "reportPage": 19,
+      "reportStartsWith": "White to red, moderately cemented, promi"
+    },
+    {
+      "code": "Plm",
+      "name": "middle unit",
+      "ageText": "Permian",
+      "parent": null,
+      "group": "Lyons Sandstone",
+      "reportPage": 19,
+      "reportStartsWith": "Crimson to white arkosic conglomerate an"
+    },
+    {
+      "code": "Pll",
+      "name": "lower unit",
+      "ageText": "Permian",
+      "parent": null,
+      "group": "Lyons Sandstone",
+      "reportPage": 19,
+      "reportStartsWith": "Massive red eolian sandstone with poorly"
+    },
+    {
+      "code": "PIPf",
+      "name": "Fountain Formation",
+      "ageText": "Lower Permian and Pennsylvanian",
+      "parent": null,
+      "group": null,
+      "reportPage": 19,
+      "reportStartsWith": "Red and white, coarse-grained, arkosic s"
+    },
+    {
+      "code": "PIPfg",
+      "name": "Glen Eyrie Member of the Fountain Formation",
+      "ageText": "Lower Pennsylvanian",
+      "parent": null,
+      "group": null,
+      "reportPage": 20,
+      "reportStartsWith": "Black to blue-gray shale and lesser amou"
+    },
+    {
+      "code": "MDlh",
+      "name": "Hardscrabble Limestone Member of the Leadville Limestone (Mississippian) and Williams Canyon Formation (Devonian), undifferentiated",
+      "ageText": "Mississippian and Devonian",
+      "parent": null,
+      "group": null,
+      "reportPage": 20,
+      "reportStartsWith": "The Williams Canyon Formation consists o"
+    },
+    {
+      "code": "Om",
+      "name": "Manitou Limestone",
+      "ageText": "Lower Ordovician",
+      "parent": null,
+      "group": null,
+      "reportPage": 20,
+      "reportStartsWith": "The Manitou Limestone consists of fine-g"
+    },
+    {
+      "code": "Cs",
+      "name": "Sawatch Sandstone",
+      "ageText": "Upper Cambrian",
+      "parent": null,
+      "group": null,
+      "reportPage": 20,
+      "reportStartsWith": "Arkosic to glauconite-rich dolomitic san"
+    },
+    {
+      "code": "Ym",
+      "name": "Mafic dikes",
+      "ageText": "Middle Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 21,
+      "reportStartsWith": "Medium-gray to very dark-gray, fine- to "
+    },
+    {
+      "code": "Yp",
+      "name": "Pegmatite",
+      "ageText": "Middle Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 21,
+      "reportStartsWith": "Very coarse-grained, white to pink veins"
+    },
+    {
+      "code": "Ymr",
+      "name": "Mount Rosa granite",
+      "ageText": "Middle Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 21,
+      "reportStartsWith": "Light- to medium-gray and grayish-pink, "
+    },
+    {
+      "code": "Ywp",
+      "name": "Windy Point granite",
+      "ageText": "Middle Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 22,
+      "reportStartsWith": "Gray to pinkish-gray, fine- to medium-gr"
+    },
+    {
+      "code": "Ync",
+      "name": "Granite of Nelson Camp",
+      "ageText": "Middle Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 22,
+      "reportStartsWith": "Tan to greenish-brown to dark-green, med"
+    },
+    {
+      "code": "Yam",
+      "name": "Granite of Almagre Mountain",
+      "ageText": "Middle Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 23,
+      "reportStartsWith": "Pink to red, medium- to coarse-grained, "
+    },
+    {
+      "code": "Ypp",
+      "name": "Pikes Peak Granite",
+      "ageText": "Middle Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 23,
+      "reportStartsWith": "Pink, light reddish-brown, light-gray, c"
+    },
+    {
+      "code": "Yfg",
+      "name": "Fayalite granite",
+      "ageText": "Middle Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 23,
+      "reportStartsWith": "Dark-olive-green to greenish-gray, coars"
+    },
+    {
+      "code": "YXg",
+      "name": "Granite",
+      "ageText": "Early or Middle (?) Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 24,
+      "reportStartsWith": "Pink, medium-grained, equigranular, mass"
+    },
+    {
+      "code": "Xgd",
+      "name": "Granodiorite",
+      "ageText": "Early Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 24,
+      "reportStartsWith": "Medium-to dark-gray, pink-mottled, mediu"
+    },
+    {
+      "code": "Xgn",
+      "name": "Migmatitic gneiss",
+      "ageText": "Early Proterozoic",
+      "parent": null,
+      "group": null,
+      "reportPage": 24,
+      "reportStartsWith": "Potassium feldspar-biotite migmatite, qu"
+    }
+  ]
+}

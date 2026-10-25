@@ -20,8 +20,9 @@ export default function UploadScreen({ onFile, error }) {
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">Geologic Map Explorer</h1>
         <p className="mt-2 text-slate-400">
-          Drop a USGS or state-survey geologic map PDF. Unit labels and the legend are read straight from the
-          PDF; click any label to see its unit.
+          Drop a USGS or state-survey geologic map PDF, or a whole publication that includes the plate and its
+          report text. Unit labels and the legend are read straight from the PDF; click any label to see its
+          unit, then open the full description from the report.
         </p>
 
         <label
@@ -40,7 +41,7 @@ export default function UploadScreen({ onFile, error }) {
           }`}
         >
           <Upload className="text-slate-400" />
-          <span className="font-medium">Choose a map PDF</span>
+          <span className="font-medium">Choose a map or report PDF</span>
           <span className="text-sm text-slate-500">or drag it here — nothing is uploaded anywhere</span>
           <input
             ref={input}

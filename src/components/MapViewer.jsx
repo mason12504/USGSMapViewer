@@ -5,6 +5,8 @@ const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 8;
 
 function labelStyle(label, { selected, highlighted, showColorCheck }) {
+  // Codes outside the map frame (cross-sections, correlation chart).
+  if (label.other && !selected && !highlighted) return { stroke: 'rgba(56,189,248,0.8)', fill: 'rgba(56,189,248,0.10)' };
   if (selected) return { stroke: '#10b981', fill: 'rgba(16,185,129,0.35)' };
   if (highlighted) return { stroke: '#f59e0b', fill: 'rgba(245,158,11,0.35)' };
   if (showColorCheck && label.color) {
@@ -23,6 +25,7 @@ export default function MapViewer({
   highlightKey,
   showColorCheck,
   marker,
+  frame,
   onLabelClick,
   onMapClick,
 }) {
@@ -86,6 +89,7 @@ export default function MapViewer({
         {zoom && (
           <div className="relative mx-auto" style={{ width: w * zoom, height: h * zoom }}>
             <img
+              key={map.url}
               src={map.url}
               alt="Geologic map"
               draggable={false}
@@ -129,6 +133,21 @@ export default function MapViewer({
                   </rect>
                 );
               })}
+              {frame && (
+                <rect
+                  x={frame.x0}
+                  y={frame.y0}
+                  width={frame.x1 - frame.x0}
+                  height={frame.y1 - frame.y0}
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth={1.5}
+                  strokeDasharray="8 5"
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                  data-testid="map-frame"
+                />
+              )}
               {marker && (
                 <circle
                   cx={marker.x}

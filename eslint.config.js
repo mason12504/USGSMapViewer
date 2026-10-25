@@ -25,6 +25,11 @@ export default [
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
   {
+    // page.evaluate() callbacks run in the browser.
+    files: ['tests/e2e/**/*.js'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
     files: ['server/**/*.js', 'scripts/**/*.js', 'tests/**/*.js', '*.config.js'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.node } },
     rules: { 'no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },

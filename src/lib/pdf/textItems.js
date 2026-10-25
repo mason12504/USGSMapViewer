@@ -112,7 +112,7 @@ export function splitWords(items) {
  * Group items into visual lines (same baseline, roughly), sorted top-to-bottom
  * and left-to-right. Each line: {items, text, x0, x1, y0, y1, baseline}.
  */
-export function groupLines(items, { tolerance = 0.35 } = {}) {
+export function groupLines(items, { tolerance = 0.35, maxGap = Infinity } = {}) {
   const sorted = [...items].sort((a, b) => a.baseline - b.baseline || a.x0 - b.x0);
   const lines = [];
   for (const it of sorted) {
@@ -132,6 +132,10 @@ export function groupLines(items, { tolerance = 0.35 } = {}) {
   }
   for (const line of lines) {
     line.items.sort((a, b) => a.x0 - b.x0);
+    // Text from a neighbouring column sharing this baseline is not part of
+    // the line: stop at a gap wider than `maxGap` font sizes.
+    const cut = line.items.findIndex((it, i) => i > 0 && it.x0 - line.items[i - 1].x1 > maxGap * it.fontSize);
+    if (cut > 0) line.items.length = cut;
     let text = '';
     let prev = null;
     for (const it of line.items) {

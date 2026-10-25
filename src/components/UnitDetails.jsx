@@ -1,6 +1,7 @@
-import React from 'react';
-import { AlertTriangle, CheckCircle2, CornerDownRight, HelpCircle, MousePointerClick, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, BookOpen, CheckCircle2, ChevronDown, ChevronRight, CornerDownRight, HelpCircle, Maximize2, MousePointerClick, X } from 'lucide-react';
 import Swatch from './Swatch.jsx';
+import DescriptionReader from './DescriptionReader.jsx';
 import { describePaint } from '../lib/color/paint.js';
 
 export default function UnitDetails({ entry, label, identify, swatchUrl, legendByKey, onClose }) {
@@ -40,6 +41,7 @@ export default function UnitDetails({ entry, label, identify, swatchUrl, legendB
       </div>
 
       {entry.description && <p className="mt-3 text-sm leading-relaxed text-slate-300">{entry.description}</p>}
+      {entry.report && <FullDescription key={entry.key} entry={entry} swatchUrl={swatchUrl} />}
 
       {label && <ColorCheck label={label} legendByKey={legendByKey} />}
       {identify && (
@@ -55,6 +57,49 @@ export default function UnitDetails({ entry, label, identify, swatchUrl, legendB
         </p>
       )}
     </Card>
+  );
+}
+
+/** Brief by default (the plate's legend line above); the report's full text on demand. */
+function FullDescription({ entry, swatchUrl }) {
+  const [open, setOpen] = useState(false);
+  const [reading, setReading] = useState(false);
+  const Chevron = open ? ChevronDown : ChevronRight;
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        data-testid="full-description-toggle"
+        className="flex w-full items-center gap-2 rounded-lg bg-slate-700/40 px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-700/70"
+      >
+        <Chevron size={14} className="shrink-0" />
+        <span className="flex-1">{open ? 'Hide full description' : 'Full description'}</span>
+        <span className="flex items-center gap-1 text-xs text-slate-400">
+          <BookOpen size={12} /> report p.{entry.report.page}
+        </span>
+      </button>
+      {open && (
+        <div className="relative mt-2 rounded-lg border border-slate-700 bg-slate-900/60">
+          <button
+            type="button"
+            onClick={() => setReading(true)}
+            title="Open in a larger reader"
+            aria-label="Expand description"
+            data-testid="full-description-expand"
+            className="absolute right-1.5 top-1.5 rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+          >
+            <Maximize2 size={14} />
+          </button>
+          <div className="max-h-56 overflow-y-auto p-3 pr-9" data-testid="full-description-text">
+            <p className="whitespace-pre-line text-sm leading-relaxed text-slate-200">{entry.report.text}</p>
+            {entry.report.truncated && <p className="mt-2 text-xs text-amber-300">Long description: showing the first part only.</p>}
+          </div>
+        </div>
+      )}
+      {reading && <DescriptionReader entry={entry} swatchUrl={swatchUrl} onClose={() => setReading(false)} />}
+    </div>
   );
 }
 
