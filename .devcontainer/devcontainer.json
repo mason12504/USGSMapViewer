@@ -1,0 +1,38 @@
+{
+  "name": "mapparser",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "sandbox",
+  // Only the sandbox. api-real (the real-key server) is opt-in, started by hand.
+  "runServices": ["sandbox"],
+  "workspaceFolder": "/workspace",
+  "remoteUser": "dev",
+  "shutdownAction": "stopCompose",
+
+  "forwardPorts": [5173],
+  "portsAttributes": {
+    "5173": { "label": "Map explorer (Vite)", "onAutoForward": "notify" },
+    "3001": { "label": "API server (mock)", "onAutoForward": "silent" },
+    "4173": { "label": "Production preview", "onAutoForward": "notify" }
+  },
+
+  // Runs once per container creation, as "dev", after the firewall is up
+  // (npm registry is allowlisted).
+  "postCreateCommand": "npm ci",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "git.autofetch": false,
+        "editor.formatOnSave": false,
+        "eslint.useFlatConfig": true
+      },
+      "extensions": [
+        "anthropic.claude-code",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "ms-playwright.playwright"
+      ]
+    }
+  }
+}

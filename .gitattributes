@@ -1,0 +1,9 @@
+# Keep LF line endings in the repo and on checkout, even with Git for Windows'
+# autocrlf. A CRLF in .devcontainer/*.sh breaks the container ("bash\r: not found").
+* text=auto eol=lf
+*.ps1 text eol=crlf
+
+*.pdf binary
+*.png binary
+*.jpg binary
+*.wasm binary

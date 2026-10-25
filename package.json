@@ -1,0 +1,48 @@
+{
+  "name": "geologic-map-explorer",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Interactive geologic map explorer: text-first unit detection from map PDFs, with experimental color matching",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "vite --host 0.0.0.0 --port 5173",
+    "dev:api": "node --watch server/index.js",
+    "dev:live": "API_TARGET=http://api-real:3001 vite --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "color:lab": "node scripts/color-lab.js",
+    "parse": "node scripts/parse-pdf.js"
+  },
+  "dependencies": {
+    "express": "5.3.0",
+    "lucide-react": "1.61.0",
+    "pdfjs-dist": "6.4.299",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tesseract.js": "7.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@napi-rs/canvas": "1.0.13",
+    "@playwright/test": "1.63.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "autoprefixer": "10.6.1",
+    "concurrently": "10.0.6",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "17.13.0",
+    "postcss": "8.5.31",
+    "supertest": "7.3.1",
+    "tailwindcss": "3.4.19",
+    "vite": "7.3.7",
+    "vitest": "5.0.5"
+  }
+}

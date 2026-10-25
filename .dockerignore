@@ -1,0 +1,6 @@
+# The image only needs two scripts from the repo. Excluding everything else
+# keeps builds fast and guarantees nothing else (fixtures, .git, a stray
+# secrets file) ends up in the build context.
+*
+!.devcontainer/entrypoint.sh
+!.devcontainer/init-firewall.sh

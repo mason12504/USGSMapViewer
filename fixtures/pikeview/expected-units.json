@@ -1,0 +1,273 @@
+{
+  "_about": "Hand-checkable ground truth for tests/fixtures/pikeview.test.js. Names/ages were produced by the parser, then cross-checked against an independent extractor (poppler pdftotext) and, for Qsw/Kda/Qc, against the list Mason provided. Edit this file (not the test) when you verify or correct a unit.",
+  "source": "OF-01-03 Geologic Map of the Pikeview Quadrangle, El Paso County, Colorado (Colorado Geological Survey, 2001). Public document.",
+  "pdf": "OF-01-03_Pikeview_Geologic_Map.pdf",
+  "units": [
+    {
+      "code": "Qsw",
+      "name": "Sheetwash deposits",
+      "ageText": "Holocene and late Pleistocene",
+      "group": "Alluvial Deposits",
+      "descriptionStartsWith": "Silty sand, clayey silt, and clay",
+      "verified": [
+        "user-list",
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qt1",
+      "name": "Terrace alluvium one",
+      "ageText": "Holocene and late Pleistocene",
+      "group": "Alluvial Deposits",
+      "descriptionStartsWith": "Unconsolidated stream alluvium that underlies low",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qt2",
+      "name": "Terrace alluvium two",
+      "ageText": "late Pleistocene",
+      "group": "Alluvial Deposits",
+      "descriptionStartsWith": "Unconsolidated stream alluvium that underlies terraces",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qt3",
+      "name": "Terrace alluvium three",
+      "ageText": "late-middle Pleistocene",
+      "group": "Alluvial Deposits",
+      "descriptionStartsWith": "Stream alluvium that underlies two terraces",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qg1",
+      "name": "Older gravel one",
+      "ageText": "middle Pleistocene",
+      "group": "Alluvial Deposits",
+      "descriptionStartsWith": "Gravel underlying gently sloping topographic surfaces",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qg2",
+      "name": "Older gravel two",
+      "ageText": "middle Pleistocene",
+      "group": "Alluvial Deposits",
+      "descriptionStartsWith": "Gravel underlying gently sloping topographic surfaces",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qg3",
+      "name": "Older gravel three",
+      "ageText": "middle to early Pleistocene",
+      "group": "Alluvial Deposits",
+      "descriptionStartsWith": "Gravel deposits about 200 to 300",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qlsr",
+      "name": "Recent landslide deposits",
+      "ageText": "Holocene",
+      "group": "Colluvial Deposits",
+      "descriptionStartsWith": "Landslides with fresh morphological features such",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qls",
+      "name": "Landslide deposits",
+      "ageText": "Pleistocene",
+      "group": "Colluvial Deposits",
+      "descriptionStartsWith": "Similar in texture to recent landslide",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qc",
+      "name": "Colluvium",
+      "ageText": "Holocene and late Pleistocene",
+      "group": "Colluvial Deposits",
+      "descriptionStartsWith": "Mostly matrix-supported, gravelly sand, silty clay,",
+      "verified": [
+        "user-list",
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qfy",
+      "name": "Younger fan deposits",
+      "ageText": "Holocene",
+      "group": "Alluvial and Colluvial Deposits",
+      "descriptionStartsWith": "Sediments deposited by debris flows, hyperconcentrated",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qac",
+      "name": "Alluvium and colluvium, undivided",
+      "ageText": "Holocene",
+      "group": "Alluvial and Colluvial Deposits",
+      "descriptionStartsWith": "Stream-channel alluvium in mainstem Monument Creek",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qfo",
+      "name": "Older fan deposits",
+      "ageText": "late and middle? Pleistocene",
+      "group": "Alluvial and Colluvial Deposits",
+      "descriptionStartsWith": "Unit is poorly sorted, clast-supported boulder",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Qes",
+      "name": "Eolian sand",
+      "ageText": "Holocene to late Pleistocene",
+      "group": "Eolian Deposits",
+      "descriptionStartsWith": "Fine- to coarse-grained silty sand deposited",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "TKda3",
+      "name": "Facies unit three",
+      "ageText": "Upper Cretaceous and Paleocene",
+      "group": "Upper part of the Dawson Formation",
+      "descriptionStartsWith": "Sub-equal amounts of three lith-ologies: very",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "TKda2",
+      "name": "Facies unit two",
+      "ageText": "Upper Cretaceous and Paleocene",
+      "group": "Upper part of the Dawson Formation",
+      "descriptionStartsWith": "Light-gray to greenish-gray arkosic sandstone and",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "TKda1",
+      "name": "Facies unit one",
+      "ageText": "Upper Cretaceous and Paleocene",
+      "group": "Upper part of the Dawson Formation",
+      "descriptionStartsWith": "Cliff-forming, white to light-gray, crossbedded or",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Kda",
+      "name": "Lower part of the Dawson Formation",
+      "ageText": "Upper Cretaceous",
+      "descriptionStartsWith": "Greenish-gray to olive-brown, crossbedded or massive,",
+      "verified": [
+        "user-list",
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Kl",
+      "name": "Laramie Formation",
+      "ageText": "Upper Cretaceous",
+      "descriptionStartsWith": "Divided into three mapped informal members:",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Klu",
+      "name": "Upper member",
+      "ageText": "Upper Cretaceous",
+      "parent": "Kl",
+      "descriptionStartsWith": "Brownish-gray sandy shale and very fine-grained",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Kls",
+      "name": "Middle sandstone member",
+      "ageText": "Upper Cretaceous",
+      "parent": "Kl",
+      "descriptionStartsWith": "Thick to very thick bedded, light-colored,",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Kll",
+      "name": "Lower member",
+      "ageText": "Upper Cretaceous",
+      "parent": "Kl",
+      "descriptionStartsWith": "Light-gray to light-brownish-gray, very fine-grained sandstone",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Kfh",
+      "name": "Fox Hills Sandstone",
+      "ageText": "Upper Cretaceous",
+      "descriptionStartsWith": "Gray shale and light-olive-gray, very fine-grained",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Kp",
+      "name": "Pierre Shale",
+      "ageText": "Upper Cretaceous",
+      "descriptionStartsWith": "Gray to dark-gray shale that weathers",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Kn",
+      "name": "Niobrara Formation",
+      "ageText": "Upper Cretaceous",
+      "descriptionStartsWith": "Divided into two members but not",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    },
+    {
+      "code": "Kcgg",
+      "name": "Carlile Shale, Greenhorn Limestone, and Graneros Shale, undifferentiated",
+      "ageText": "Upper Cretaceous",
+      "descriptionStartsWith": "Dark-gray shale interbedded with thin beds",
+      "verified": [
+        "poppler-crosscheck"
+      ]
+    }
+  ],
+  "expectations": {
+    "minMapLabels": 330,
+    "minVectorColorAgreement": 0.93,
+    "mustNotBeLabels": [
+      "Creek",
+      "Unit",
+      "Cheryl"
+    ]
+  }
+}

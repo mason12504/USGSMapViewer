@@ -1,0 +1,107 @@
+# Fixed project name, so the dev container and `api-real` (started by hand
+# from your PC) share the same network and volumes. Check with `docker compose ls`.
+name: mapparser
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────
+  # The dev container VS Code attaches to. Claude Code runs here.
+  # No secrets, egress firewall, can commit but cannot push.
+  # ─────────────────────────────────────────────────────────────────────────
+  sandbox:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    image: mapparser-dev:latest
+    # Required for iptables (init-firewall.sh). The entrypoint drops to the
+    # non-root "dev" user right after, which has no capabilities.
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      # The project. Edits in here are edits on your PC.
+      - ..:/workspace
+
+      # ── Things that RUN ON YOUR PC are read-only in here ────────────────
+      # Anything the container can write AND your PC later executes is a way
+      # out of the sandbox. So:
+      #  - .devcontainer/: docker-compose.yml mounts and devcontainer.json's
+      #    initializeCommand run/apply on your PC at the next rebuild.
+      - .:/workspace/.devcontainer:ro
+      #  - .git/config: settings like core.fsmonitor / core.hooksPath make
+      #    YOUR git run programs. Committing doesn't need to write config.
+      - ../.git/config:/workspace/.git/config:ro
+      #  - .git/hooks: scripts your git runs on commit/push.
+      - ../.git/hooks:/workspace/.git/hooks:ro
+      #  - scripts/host/: the safe-push script you run in PowerShell.
+      - ../scripts/host:/workspace/scripts/host:ro
+      #  - .vscode/: workspace tasks/settings your local VS Code would load.
+      #    Claude's writes here go to a throwaway tmpfs instead.
+      - type: tmpfs
+        target: /workspace/.vscode
+        tmpfs:
+          mode: 01777
+
+      # Linux node_modules in a named volume: fast, never written to your PC.
+      - node_modules:/workspace/node_modules
+      # Claude Code login persists across rebuilds.
+      - claude-config:/home/dev/.claude
+    environment:
+      # The API server in here never has a key; it replays saved responses.
+      - MOCK_ANTHROPIC=1
+      # Lets the firewall allow exactly api-real:3001 (live mode, opt-in).
+      - API_REAL_IP=172.30.77.10
+      # Commit identity: Claude authors, you are the committer of record.
+      - GIT_AUTHOR_NAME=Claude (mapparser sandbox)
+      - GIT_AUTHOR_EMAIL=noreply@anthropic.com
+      - GIT_COMMITTER_NAME=Mason Andersen
+      - GIT_COMMITTER_EMAIL=masonandersen3002@gmail.com
+      # Uncomment if file changes made from Windows (not from inside the
+      # container) don't trigger Vite reloads:
+      # - CHOKIDAR_USEPOLLING=true
+    networks:
+      mapnet: {}
+    command: ["sleep", "infinity"]
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # OPT-IN live API server holding the real Anthropic key. Never started by
+  # the dev container. Start it yourself from your PC (see docs/HOST_SETUP.md):
+  #   docker compose -f .devcontainer/docker-compose.yml --profile real up api-real
+  # ─────────────────────────────────────────────────────────────────────────
+  api-real:
+    profiles: ["real"]
+    image: mapparser-dev:latest
+    # No firewall/gosu entrypoint and no extra capabilities: just node, as dev.
+    entrypoint: []
+    user: dev
+    working_dir: /app
+    command: ["node", "server/index.js"]
+    volumes:
+      # Code is READ-ONLY here.
+      - ..:/app:ro
+      # Reuse the dev container's installed dependencies, read-only.
+      - node_modules:/app/node_modules:ro
+      # Your private folder (SECRETS.env). Mounted ONLY into this service.
+      # Set MAPPARSER_PRIVATE_DIR in .devcontainer/.env (gitignored) or your
+      # shell. If unset, the server refuses to start with a clear error.
+      - ${MAPPARSER_PRIVATE_DIR:-/nonexistent-set-MAPPARSER_PRIVATE_DIR}:/opt/private:ro
+      # Where recorded live responses go (to turn into mocks). Writable.
+      - ../fixtures/_recorded:/app/fixtures/_recorded
+    environment:
+      - PRIVATE_ROOT=/opt/private
+      - HOST=0.0.0.0
+      - PORT=3001
+      # Set MAPPARSER_RECORD_DIR=/app/fixtures/_recorded to record responses.
+      - RECORD_DIR=${MAPPARSER_RECORD_DIR:-}
+    networks:
+      mapnet:
+        ipv4_address: 172.30.77.10
+
+networks:
+  mapnet:
+    ipam:
+      config:
+        - subnet: 172.30.77.0/24
+
+volumes:
+  node_modules:
+  claude-config:

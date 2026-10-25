@@ -1,0 +1,28 @@
+# dependencies / build output
+node_modules/
+dist/
+coverage/
+
+# test + debug output
+test-results/
+playwright-report/
+.lab/
+.scratch/
+fixtures/_recorded/*
+!fixtures/_recorded/.gitkeep
+
+# local config / secrets (secrets belong in your private folder, never here)
+.env
+.env.*
+!.env.example
+.devcontainer/.env
+*.pem
+*.key
+
+# editors / OS
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+npm-debug.log*
