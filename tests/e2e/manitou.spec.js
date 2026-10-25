@@ -50,22 +50,53 @@ test.describe('Manitou Springs publication', () => {
     await expect(page.getByTestId('full-description-text')).toContainText('Nonresistant');
   });
 
-  test('full plate view shows the whole sheet with cross-section labels', async ({ page }) => {
-    const mapLabels = await page.getByTestId('map-label').count();
-    await page.getByTestId('view-plate').click();
-    await expect(page.getByTestId('plate-loading')).toHaveCount(0, { timeout: 120_000 });
-    await expect(page.getByTestId('map-frame')).toBeAttached();
-    expect(await page.getByTestId('map-label').count()).toBeGreaterThan(mapLabels);
-
+  test('shows the whole sheet, not a crop, with cross-section labels', async ({ page }) => {
     const m = await page.evaluate(() => {
       const img = document.querySelector('[data-testid=map-image]');
       const r = img.getBoundingClientRect();
       return { natural: img.naturalWidth / img.naturalHeight, shown: r.width / r.height };
     });
-    expect(Math.abs(m.natural - 2592 / 3024)).toBeLessThan(0.01); // the whole sheet
+    expect(Math.abs(m.natural - 2592 / 3024)).toBeLessThan(0.01); // the whole page
     expect(Math.abs(m.natural - m.shown)).toBeLessThan(0.01);
 
+    const all = await page.getByTestId('map-label').count();
+    expect(all).toBeGreaterThan(528); // map labels + cross-section/chart labels
     await page.getByTestId('toggle-other-labels').uncheck();
-    expect(await page.getByTestId('map-label').count()).toBe(mapLabels);
+    expect(await page.getByTestId('map-label').count()).toBe(528);
+  });
+
+  test('middle-mouse drag pans the sheet; the map-frame outline and zoom-to-map work', async ({ page }) => {
+    await page.getByTestId('zoom-to-map').click();
+    const scroller = page.getByTestId('map-scroller');
+    const box = await scroller.boundingBox();
+    const read = () => scroller.evaluate((el) => [el.scrollLeft, el.scrollTop]);
+    const [l0, t0] = await read();
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down({ button: 'middle' });
+    await page.mouse.move(box.x + box.width / 2 - 120, box.y + box.height / 2 - 80, { steps: 6 });
+    await page.mouse.up({ button: 'middle' });
+    const [l1, t1] = await read();
+    expect(l1 - l0).toBeGreaterThan(100); // dragging left reveals what is to the right
+    expect(t1 - t0).toBeGreaterThan(60);
+
+    // A left-button drag pans too, and does not select what it started on.
+    await page.mouse.move(box.x + 300, box.y + 300);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 200, box.y + 240, { steps: 6 });
+    await page.mouse.up();
+    const [l2, t2] = await read();
+    expect(l2 - l1).toBeGreaterThan(80);
+    expect(t2 - t1).toBeGreaterThan(40);
+    await expect(page.getByTestId('unit-details')).toHaveCount(0);
+
+    await page.waitForTimeout(300); // clicks right after a drag are ignored
+    // A plain click (no movement) still selects a label.
+    await page.locator('[data-testid="map-label"][data-code="Ypp"]').first().click();
+    await expect(page.getByTestId('unit-details')).toBeVisible();
+
+    await expect(page.getByTestId('map-frame')).toHaveCount(0);
+    await page.getByTestId('toggle-map-frame').check();
+    await expect(page.getByTestId('map-frame')).toBeAttached();
   });
 });

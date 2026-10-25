@@ -7,7 +7,9 @@ import { openPdf, OPS, renderRegion, cropToDataUrl } from '../pdf/pdfjs.browser.
 import { parseDocument } from '../lib/document.js';
 import { identifyAt } from '../lib/color/index.js';
 
-const MAX_MAP_PIXELS_SIDE = 4096;
+// The whole plate is rendered, not just the map frame, so the long side gets
+// more pixels (~31 MP for a 36x42 in sheet) to keep zoomed-in labels legible.
+const MAX_MAP_PIXELS_SIDE = 6000;
 const MAX_LEGEND_PIXELS = 12_000_000;
 
 export function useMapParser() {
@@ -33,7 +35,9 @@ export function useMapParser() {
       internals.current = { page, color: parsed.internals.color };
 
       progress('Rendering map');
-      const region = result.mapRegion.bbox;
+      // Never crop: the view is the whole page, and the map frame is just a
+      // region inside it (result.mapRegion) the UI can zoom to.
+      const region = { x0: 0, y0: 0, x1: result.page.width, y1: result.page.height };
       const w = region.x1 - region.x0, h = region.y1 - region.y0;
       const scale = Math.min(2.5, MAX_MAP_PIXELS_SIDE / Math.max(w, h));
       const mapCanvas = await renderRegion(page, region, scale);
@@ -45,7 +49,6 @@ export function useMapParser() {
         result,
         map: { url: mapUrl, region, scale, width: mapCanvas.width, height: mapCanvas.height },
         swatches: {},
-        plate: null, // full-sheet render, made on demand (see showPlate)
       });
 
       // Background: crisp legend swatch previews (one render, many crops).
@@ -86,35 +89,13 @@ export function useMapParser() {
     return renderRegion(it.page, box, 1.5);
   }, [state]);
 
-  /**
-   * Render the WHOLE plate (map, legend, cross-sections, insets) for the
-   * "Full plate" view. Heavy, so only when asked; the result is cached in state.
-   */
-  const showPlate = useCallback(async () => {
-    const it = internals.current;
-    if (!it || state.status !== 'ready' || state.plate) return;
-    setState((s) => (s.status === 'ready' ? { ...s, plate: { status: 'loading' } } : s));
-    try {
-      const { width, height } = state.result.page;
-      const region = { x0: 0, y0: 0, x1: width, y1: height };
-      const scale = Math.min(2.5, MAX_MAP_PIXELS_SIDE / Math.max(width, height));
-      const canvas = await renderRegion(it.page, region, scale);
-      const url = await canvasToObjectUrl(canvas);
-      setState((s) => (s.status === 'ready' ? { ...s, plate: { status: 'ready', url, region, scale, width: canvas.width, height: canvas.height } } : s));
-    } catch (err) {
-      console.error(err);
-      setState((s) => (s.status === 'ready' ? { ...s, plate: { status: 'error', error: err.message || String(err) } } : s));
-    }
-  }, [state]);
-
   const reset = useCallback(() => {
     if (state.map?.url) URL.revokeObjectURL(state.map.url);
-    if (state.plate?.url) URL.revokeObjectURL(state.plate.url);
     internals.current = null;
     setState({ status: 'idle' });
   }, [state]);
 
-  return { state, load, identify, legendImage, showPlate, reset };
+  return { state, load, identify, legendImage, reset };
 }
 
 function canvasToObjectUrl(canvas) {

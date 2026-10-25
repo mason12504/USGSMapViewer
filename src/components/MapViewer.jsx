@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Maximize, ZoomIn, ZoomOut } from 'lucide-react';
+import { Maximize, ScanSearch, ZoomIn, ZoomOut } from 'lucide-react';
 
-const MIN_ZOOM = 0.2;
+const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 8;
+const PAD = 160; // screen px of free space around the sheet, so edges can be dragged to the middle
+const DRAG_THRESHOLD = 5; // px a left-button drag must travel before it pans instead of clicking
 
 function labelStyle(label, { selected, highlighted, showColorCheck }) {
   // Codes outside the map frame (cross-sections, correlation chart).
@@ -26,10 +28,16 @@ export default function MapViewer({
   showColorCheck,
   marker,
   frame,
+  focus,
   onLabelClick,
   onMapClick,
 }) {
   const scroller = useRef(null);
+  const content = useRef(null);
+  const pendingFocus = useRef(null);
+  const drag = useRef(null);
+  const lastDragEnd = useRef(0);
+  const [grabbing, setGrabbing] = useState(false);
   const [zoom, setZoom] = useState(null); // screen px per page unit
   const { region } = map;
   const w = region.x1 - region.x0;
@@ -38,8 +46,31 @@ export default function MapViewer({
   const fit = useCallback(() => {
     const el = scroller.current;
     if (!el) return;
-    setZoom(Math.min(el.clientWidth / w, el.clientHeight / h) * 0.98);
-  }, [w, h]);
+    setZoom(Math.min(el.clientWidth / w, el.clientHeight / h) * 0.96);
+    pendingFocus.current = region; // centre the whole sheet
+  }, [w, h, region]);
+
+  /** Zoom to a box in page units (the map frame) and centre on it. */
+  const focusOn = useCallback((box) => {
+    const el = scroller.current;
+    if (!el || !box) return;
+    const z = Math.min(el.clientWidth / (box.x1 - box.x0), el.clientHeight / (box.y1 - box.y0)) * 0.96;
+    pendingFocus.current = box;
+    setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z)));
+  }, []);
+
+  // After a zoom change that asked for it, scroll so the box sits in the middle.
+  useLayoutEffect(() => {
+    const box = pendingFocus.current;
+    const el = scroller.current;
+    const c = content.current;
+    if (!box || !el || !c || !zoom) return;
+    pendingFocus.current = null;
+    const cx = ((box.x0 + box.x1) / 2 - region.x0) * zoom;
+    const cy = ((box.y0 + box.y1) / 2 - region.y0) * zoom;
+    el.scrollLeft = c.offsetLeft + cx - el.clientWidth / 2;
+    el.scrollTop = c.offsetTop + cy - el.clientHeight / 2;
+  }, [zoom, region]);
 
   useLayoutEffect(() => {
     fit();
@@ -74,6 +105,48 @@ export default function MapViewer({
     return () => el.removeEventListener('wheel', onWheel);
   }, [zoomBy]);
 
+  // Drag to pan, like moving a photo: middle button anywhere, or the left
+  // button once it has moved a few pixels (so plain clicks still select).
+  const onPointerDown = (e) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    const el = scroller.current;
+    drag.current = { id: e.pointerId, button: e.button, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, active: e.button === 1 };
+    if (e.button === 1) {
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      setGrabbing(true);
+    }
+  };
+  const onPointerMove = (e) => {
+    const d = drag.current;
+    const el = scroller.current;
+    if (!d || !el) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.active && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      d.active = true;
+      el.setPointerCapture(d.id);
+      setGrabbing(true);
+    }
+    if (d.active) {
+      el.scrollLeft = d.left - dx;
+      el.scrollTop = d.top - dy;
+    }
+  };
+  const endDrag = () => {
+    // Only a left-button drag ends in a click event (middle fires auxclick).
+    if (drag.current?.active && drag.current.button === 0) lastDragEnd.current = Date.now();
+    drag.current = null;
+    setGrabbing(false);
+  };
+  // A drag that ends over a label must not also count as a click on it.
+  const swallowClickAfterDrag = (e) => {
+    if (Date.now() - lastDragEnd.current < 250) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
+
   const handleSvgClick = (e) => {
     const svg = e.currentTarget;
     const pt = svg.createSVGPoint();
@@ -85,9 +158,22 @@ export default function MapViewer({
 
   return (
     <div className="relative h-full w-full">
-      <div ref={scroller} className="h-full w-full overflow-auto bg-slate-900" data-testid="map-scroller">
+      <div
+        ref={scroller}
+        className="relative h-full w-full overflow-auto bg-slate-900"
+        style={{ cursor: grabbing ? 'grabbing' : undefined }}
+        data-testid="map-scroller"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onMouseDown={(e) => e.button === 1 && e.preventDefault()} // no browser autoscroll
+        onAuxClick={(e) => e.preventDefault()}
+        onClickCapture={swallowClickAfterDrag}
+      >
         {zoom && (
-          <div className="relative mx-auto" style={{ width: w * zoom, height: h * zoom }}>
+          <div style={{ padding: PAD, width: 'max-content', minWidth: '100%', boxSizing: 'border-box' }}>
+          <div ref={content} className="relative mx-auto shadow-2xl" style={{ width: w * zoom, height: h * zoom }}>
             <img
               key={map.url}
               src={map.url}
@@ -97,7 +183,7 @@ export default function MapViewer({
               data-testid="map-image"
             />
             <svg
-              className="absolute inset-0 h-full w-full cursor-crosshair"
+              className={`absolute inset-0 h-full w-full ${grabbing ? 'cursor-grabbing' : 'cursor-crosshair'}`}
               viewBox={`${region.x0} ${region.y0} ${w} ${h}`}
               onClick={handleSvgClick}
               data-testid="map-overlay"
@@ -162,6 +248,7 @@ export default function MapViewer({
               )}
             </svg>
           </div>
+          </div>
         )}
       </div>
 
@@ -172,9 +259,14 @@ export default function MapViewer({
         <IconButton label="Zoom out" onClick={() => zoomBy(1 / 1.3)}>
           <ZoomOut size={18} />
         </IconButton>
-        <IconButton label="Fit map" onClick={fit}>
+        <IconButton label="Fit whole sheet" onClick={fit}>
           <Maximize size={18} />
         </IconButton>
+        {focus && (
+          <IconButton label="Zoom to the map" onClick={() => focusOn(focus)} testId="zoom-to-map">
+            <ScanSearch size={18} />
+          </IconButton>
+        )}
         <span className="px-2 py-1.5 text-xs tabular-nums text-slate-400">
           {zoom ? `${Math.round(zoom * 100)}%` : ''}
         </span>
@@ -183,12 +275,13 @@ export default function MapViewer({
   );
 }
 
-function IconButton({ label, onClick, children }) {
+function IconButton({ label, onClick, children, testId }) {
   return (
     <button
       type="button"
       title={label}
       aria-label={label}
+      data-testid={testId}
       onClick={onClick}
       className="rounded-md p-1.5 text-slate-300 hover:bg-slate-700"
     >

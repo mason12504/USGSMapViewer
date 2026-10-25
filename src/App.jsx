@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bot, FileUp, Layers, Loader2, Map as MapIcon, Palette } from 'lucide-react';
+import { Bot, FileUp, Loader2, Palette } from 'lucide-react';
 import UploadScreen from './components/UploadScreen.jsx';
 import MapViewer from './components/MapViewer.jsx';
 import UnitDetails from './components/UnitDetails.jsx';
@@ -9,14 +9,14 @@ import { useMapParser } from './hooks/useMapParser.js';
 import { getHealth } from './api.js';
 
 export default function App() {
-  const { state, load, identify, legendImage, showPlate, reset } = useMapParser();
+  const { state, load, identify, legendImage, reset } = useMapParser();
   const [selection, setSelection] = useState(null); // {entry, label?, identify?}
   const [highlightKey, setHighlightKey] = useState(null);
   const [marker, setMarker] = useState(null);
   const [showColorCheck, setShowColorCheck] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
-  const [view, setView] = useState('map'); // 'map' | 'plate'
-  const [showOther, setShowOther] = useState(true); // cross-section / chart labels in the plate view
+  const [showOther, setShowOther] = useState(true); // cross-section / chart labels
+  const [showFrame, setShowFrame] = useState(false); // outline of the map frame
   const [api, setApi] = useState(null);
 
   useEffect(() => {
@@ -27,12 +27,6 @@ export default function App() {
     () => Object.fromEntries((state.result?.legend || []).map((e) => [e.key, e])),
     [state.result],
   );
-
-  const changeView = (v) => {
-    setView(v);
-    setMarker(null);
-    if (v === 'plate') showPlate();
-  };
 
   const clearSelection = () => {
     setSelection(null);
@@ -54,10 +48,8 @@ export default function App() {
     );
   }
 
-  const { result, map, swatches, plate } = state;
-  const plateReady = view === 'plate' && plate?.status === 'ready';
-  const viewMap = plateReady ? plate : map;
-  const viewLabels = plateReady && showOther ? [...result.labels, ...(result.plateLabels || [])] : result.labels;
+  const { result, map, swatches } = state;
+  const viewLabels = showOther ? [...result.labels, ...(result.plateLabels || [])] : result.labels;
   const doc = result.document;
   const mapBox = result.mapRegion.bbox;
   const inMapFrame = (x, y) => x >= mapBox.x0 && x <= mapBox.x1 && y >= mapBox.y0 && y <= mapBox.y1;
@@ -85,16 +77,14 @@ export default function App() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <div className="flex rounded-lg bg-slate-800 p-0.5 text-sm" role="group" aria-label="View">
-            <ViewButton active={view === 'map'} onClick={() => changeView('map')} icon={MapIcon} testId="view-map">Map</ViewButton>
-            <ViewButton active={view === 'plate'} onClick={() => changeView('plate')} icon={Layers} testId="view-plate">Full plate</ViewButton>
-          </div>
-          {view === 'plate' && (
-            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-slate-800" title="Unit codes on the cross-sections and the correlation chart">
-              <input type="checkbox" checked={showOther} onChange={(e) => setShowOther(e.target.checked)} data-testid="toggle-other-labels" />
-              Cross-section labels
-            </label>
-          )}
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-slate-800" title="Unit codes on the cross-sections and the correlation chart">
+            <input type="checkbox" checked={showOther} onChange={(e) => setShowOther(e.target.checked)} data-testid="toggle-other-labels" />
+            Cross-section labels
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-slate-800">
+            <input type="checkbox" checked={showFrame} onChange={(e) => setShowFrame(e.target.checked)} data-testid="toggle-map-frame" />
+            Map frame
+          </label>
           <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-slate-800">
             <input type="checkbox" checked={showColorCheck} onChange={(e) => setShowColorCheck(e.target.checked)} data-testid="toggle-color-check" />
             <Palette size={14} /> Color check
@@ -106,7 +96,6 @@ export default function App() {
             type="button"
             onClick={() => {
               clearSelection();
-              setView('map');
               reset();
             }}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1 text-sm font-medium hover:bg-emerald-500"
@@ -123,16 +112,12 @@ export default function App() {
       )}
 
       <main className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1">
-          {view === 'plate' && plate?.status !== 'ready' && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-slate-950/70 text-slate-300" data-testid="plate-loading">
-              {plate?.status === 'error' ? <p className="text-red-300">Could not render the plate: {plate.error}</p> : <><Loader2 className="animate-spin text-emerald-400" size={28} /><p>Rendering the full plate…</p></>}
-            </div>
-          )}
+        <div className="min-w-0 flex-1">
           <MapViewer
-            map={viewMap}
+            map={map}
             labels={viewLabels}
-            frame={plateReady ? mapBox : null}
+            frame={showFrame ? mapBox : null}
+            focus={mapBox}
             selectedLabelId={selection?.label?.id}
             highlightKey={highlightKey}
             showColorCheck={showColorCheck}
@@ -183,20 +168,6 @@ export default function App() {
 
       {aiOpen && <AiCompare legend={result.legend} getLegendImage={legendImage} onClose={() => setAiOpen(false)} />}
     </div>
-  );
-}
-
-function ViewButton({ active, onClick, icon: Icon, testId, children }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      data-testid={testId}
-      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 ${active ? 'bg-slate-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}
-    >
-      <Icon size={14} /> {children}
-    </button>
   );
 }
 
