@@ -21,7 +21,8 @@
     "color:lab": "node scripts/color-lab.js",
     "parse": "node scripts/parse-pdf.js",
     "scan": "node scripts/scan-pdf.js",
-    "scan:ai": "node scripts/scan-ai.js"
+    "scan:ai": "node scripts/scan-ai.js",
+    "scan:color": "node scripts/scan-color.js"
   },
   "dependencies": {
     "express": "5.3.0",

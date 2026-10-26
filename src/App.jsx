@@ -67,8 +67,8 @@ export default function App() {
           {doc?.pageCount > 1 && <Chip title="The plate is the large sheet; the other pages are report text">plate p.{doc.plate.pageNumber} of {doc.pageCount}</Chip>}
           {doc?.report && <Chip testId="stat-descriptions" tone={doc.report.matched === result.legend.length ? 'green' : 'amber'}>{doc.report.matched} full descriptions</Chip>}
           {colorStats && (
-            <Chip title={`${result.color.primary} strategy`}>
-              color agrees {(colorStats.accuracy * 100).toFixed(0)}%
+            <Chip title={colorTitle(result.color)}>
+              color {result.color.primary === 'raster' ? 'nearby' : 'agrees'} {(colorStats.accuracy * 100).toFixed(0)}%
             </Chip>
           )}
           {api && (
@@ -132,7 +132,8 @@ export default function App() {
               setSelection({ entry: legendByKey[label.key], label });
             }}
             onMapClick={(x, y) => {
-              if (!inMapFrame(x, y)) return clearSelection(); // color identification only knows the map frame
+              // Vector color identification only knows the map frame; scans identify by pixel color anywhere.
+              if (!inMapFrame(x, y) && result.source !== 'scan') return clearSelection();
               const hit = identify(x, y);
               setMarker({ x, y });
               setHighlightKey(null);
@@ -181,6 +182,15 @@ const CHIP_TONES = {
   amber: 'bg-amber-500/15 text-amber-300',
   red: 'bg-red-500/15 text-red-300',
 };
+
+/** What "color agrees" means: exact paint for vector maps; a neighbourhood check for scans. */
+function colorTitle(color) {
+  if (color.primary === 'raster' && color.raster?.radiusPt) {
+    const r = color.raster;
+    return `Scanned map: the label's unit has a block of its legend color within ${r.radiusPt} pt of the label (${(r.accuracy * 100).toFixed(0)}% of labels), or touching the text (${(r.directAccuracy * 100).toFixed(0)}%). A hint for spotting misreads, not proof.`;
+  }
+  return `${color.primary} strategy`;
+}
 
 /** Tooltip for the API chip: what has been spent today. */
 function usageTitle(u) {

@@ -3,10 +3,11 @@
 // ref; React state only holds what the UI renders.
 
 import { useCallback, useRef, useState } from 'react';
-import { openPdf, OPS, renderRegion, cropToDataUrl } from '../pdf/pdfjs.browser.js';
+import { openPdf, OPS, renderRegion, cropToDataUrl, makeCanvasSampler } from '../pdf/pdfjs.browser.js';
 import { parseDocument } from '../lib/document.js';
 import { identifyAt } from '../lib/color/index.js';
 import { scanResultFromResolved } from '../lib/scan/toResult.js';
+import { applyScanColor } from '../lib/scan/applyColor.js';
 import { getScanResults, sha256Hex } from '../api.js';
 
 // The whole plate is rendered, not just the map frame, so the long side gets
@@ -81,14 +82,28 @@ export function useMapParser() {
         for (const e of withSwatch) swatches[e.key] = cropToDataUrl(legendCanvas, box, lscale, e.swatch.bbox);
         setState((s) => (s.status === 'ready' && s.result === result ? { ...s, swatches } : s));
       }
+
+      // Scans have no vector shapes, so color evidence comes from the pixels: each swatch's colors against the
+      // map around every label (and for click identification). Runs in the background in small chunks.
+      if (result.source === 'scan') {
+        const preloaded = makeCanvasSampler(mapCanvas, region, scale, { preload: true });
+        const forClicks = makeCanvasSampler(mapCanvas, region, scale); // reads one small patch per click
+        try {
+          const colored = await applyScanColor(result, preloaded, { identifySampler: forClicks });
+          if (internals.current) internals.current.scanIdentify = colored.identify;
+          setState((s) => (s.status === 'ready' && s.result === result ? { ...s, result: colored.result } : s));
+        } finally {
+          preloaded.release(); // the ~100 MB copy is only needed for the checks
+        }
+      }
     } catch (err) {
       console.error(err);
       setState({ status: 'error', error: err.message || String(err), fileName: file.name });
     }
   }, []);
 
-  /** Experimental: which unit is painted at page point (x, y)? (vector maps) */
-  const identify = useCallback((x, y) => identifyAt(internals.current?.color, x, y), []);
+  /** Experimental: which unit is at page point (x, y)? Exact paint for vector maps; swatch colors for scans. */
+  const identify = useCallback((x, y) => internals.current?.scanIdentify?.(x, y) ?? identifyAt(internals.current?.color, x, y), []);
 
   /** Render the legend text area for the AI comparison. */
   const legendImage = useCallback(async () => {

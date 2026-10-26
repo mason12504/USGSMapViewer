@@ -101,7 +101,7 @@ export function scanResultFromResolved(resolved) {
     stats: { swatches: resolved.swatches?.length ?? legend.length, labelBlobs: resolved.labels?.length ?? 0 },
     warnings: [{
       code: 'scanned',
-      message: `Scanned map: read from saved OCR and AI results (${labels.length + plateLabels.length} of ${resolved.labels?.length ?? '?'} candidate labels were identified, so some labels on the map are not clickable). No color matching for scans.`,
+      message: `Scanned map: read from saved OCR and AI results (${labels.length + plateLabels.length} of ${resolved.labels?.length ?? '?'} candidate labels were identified, so some labels on the map are not clickable). Color is only a hint on a scan: look-alike units share a color, so use Color check to spot doubtful labels, not to confirm them.`,
     }],
     source: 'scan',
     document: { pageCount: 1, plate: { pageNumber: 1, width: page.width, height: page.height }, pages: [{ pageNumber: 1, kind: 'plate' }], report: null },

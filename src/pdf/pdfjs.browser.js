@@ -53,3 +53,36 @@ export function cropToDataUrl(canvas, region, scale, bbox) {
   out.getContext('2d').drawImage(canvas, sx, sy, w, h, 0, 0, w, h);
   return out.toDataURL('image/png');
 }
+
+/**
+ * Pixels of an already-rendered canvas, addressed in page units (browser twin of
+ * makeNodeSampler in scripts/lib/node-pdf.js). `preload` reads the whole canvas once (about 4 bytes
+ * a pixel, ~100 MB for a big sheet) so thousands of small reads are cheap; call release() when done.
+ * Without it every getPixels reads just its own patch, which suits one-off reads like a click.
+ */
+export function makeCanvasSampler(canvas, region, scale, { preload = false } = {}) {
+  const ctx = canvas.getContext('2d');
+  let full = preload ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+  return {
+    scale,
+    region,
+    getPixels(bbox) {
+      const x0 = Math.max(0, Math.floor((bbox.x0 - region.x0) * scale));
+      const y0 = Math.max(0, Math.floor((bbox.y0 - region.y0) * scale));
+      const x1 = Math.min(canvas.width, Math.ceil((bbox.x1 - region.x0) * scale));
+      const y1 = Math.min(canvas.height, Math.ceil((bbox.y1 - region.y0) * scale));
+      const w = Math.max(0, x1 - x0), h = Math.max(0, y1 - y0);
+      if (!w || !h) return { data: new Uint8ClampedArray(0), width: 0, height: 0 };
+      if (!full) return ctx.getImageData(x0, y0, w, h);
+      const out = new Uint8ClampedArray(w * h * 4);
+      for (let y = 0; y < h; y++) {
+        const src = ((y0 + y) * full.width + x0) * 4;
+        out.set(full.data.subarray(src, src + w * 4), y * w * 4);
+      }
+      return { data: out, width: w, height: h };
+    },
+    release() {
+      full = null;
+    },
+  };
+}

@@ -46,9 +46,26 @@ export default function UnitDetails({ entry, label, identify, swatchUrl, legendB
       {label && <ColorCheck label={label} legendByKey={legendByKey} />}
       {label?.read && <ReadNote read={label.read} />}
       {identify && (
-        <p className="mt-3 flex items-center gap-2 rounded-lg bg-sky-500/10 p-2 text-xs text-sky-200">
-          <MousePointerClick size={14} /> Identified from the color/pattern at the point you clicked (experimental).
-        </p>
+        <div className="mt-3 rounded-lg bg-sky-500/10 p-2 text-xs text-sky-200" data-testid="identify-note">
+          <p className="flex items-center gap-2">
+            <MousePointerClick size={14} className="shrink-0" />
+            {identify.via === 'raster'
+              ? 'Identified by comparing the color at the point you clicked with each legend swatch (experimental).'
+              : 'Identified from the color/pattern at the point you clicked (experimental).'}
+          </p>
+          {identify.candidates?.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5 pl-6" data-testid="identify-candidates">
+              {identify.candidates.map((c) => (
+                <li key={c.key}>
+                  <span className="font-mono">{c.keys.map((k) => legendByKey[k]?.code ?? k).join(' / ')}</span>
+                  {legendByKey[c.key] && <span className="text-sky-300/80"> {legendByKey[c.key].name}</span>}
+                  <span className="text-sky-300/60"> {Math.round(c.fraction * 100)}%</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {identify.via === 'raster' && <p className="mt-1.5 pl-6 text-sky-300/70">Look-alike units share a color; the list shows the closest.</p>}
+        </div>
       )}
 
       {entry.swatch && (
@@ -122,7 +139,28 @@ function ColorCheck({ label, legendByKey }) {
   if (label.uncertain) notes.push(<Note key="u" icon={HelpCircle} tone="slate">Marked “?” on the map: uncertain identification.</Note>);
   if (!c) return notes.length ? <div className="mt-3 space-y-2">{notes}</div> : null;
 
-  const names = (keys) => keys.map((k) => `${k}${legendByKey[k] ? ` (${legendByKey[k].name})` : ''}`).join(' or ');
+  const names = (keys) => keys.map((k) => `${legendByKey[k]?.code ?? k}${legendByKey[k] ? ` (${legendByKey[k].name})` : ''}`).join(' or ');
+  if (c.method === 'raster') {
+    // Scans: is a block of the label's unit color near the label? (see src/lib/scan/colorCheck.js)
+    if (c.directAgrees) {
+      notes.push(<Note key="c" icon={CheckCircle2} tone="green">This unit's legend color is right at the label.</Note>);
+    } else if (c.agrees) {
+      notes.push(
+        <Note key="c" icon={CheckCircle2} tone="green">
+          A block of this unit's legend color is {c.nearestPt} pt from the label, not under the text (a leader line, or the next polygon over).
+        </Note>,
+      );
+    } else if (c.predicted.length) {
+      notes.push(
+        <Note key="c" icon={AlertTriangle} tone="amber">
+          No block of this unit's color near the label; the nearest legend color is {names(c.predicted)}. The label may be misread, or point further away.
+        </Note>,
+      );
+    } else {
+      notes.push(<Note key="c" icon={HelpCircle} tone="slate">No legend color found around this label (a margin or an unmatched color).</Note>);
+    }
+    return <div className="mt-3 space-y-2" data-testid="color-check">{notes}</div>;
+  }
   if (c.agrees && c.via === 'leader') {
     notes.push(<Note key="c" icon={CheckCircle2} tone="green">Color/pattern matches the legend, via the leader line (label sits outside its polygon).</Note>);
   } else if (c.agrees) {

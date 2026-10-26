@@ -4,17 +4,19 @@
 
 const sq = (n) => n * n;
 
-/** The paper colour: the most common bright colour (5 bits per channel). */
-export function paperColor({ data, width, height }) {
+/** The paper colour: the most common bright colour (5 bits per channel). `maxChroma` limits it to near-white. */
+export function paperColor({ data, width, height }, { maxChroma = Infinity, orNull = false } = {}) {
   const counts = new Map();
   const step = Math.max(1, Math.floor((width * height) / 400_000));
   for (let p = 0; p < width * height; p += step) {
     const r = data[p * 4], g = data[p * 4 + 1], b = data[p * 4 + 2];
     if ((r + g + b) / 3 < 190) continue;
+    if (Math.max(r, g, b) - Math.min(r, g, b) > maxChroma) continue; // paper is near-white, not a pale unit color
     const k = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
     counts.set(k, (counts.get(k) || 0) + 1);
   }
-  let best = [245 << 3 >> 3, 245, 235];
+  if (orNull && !counts.size) return null; // nothing near-white at all
+  let best = [245, 245, 235];
   let n = 0;
   for (const [k, c] of counts) {
     if (c > n) { n = c; best = [((k >> 10) & 31) << 3 | 4, ((k >> 5) & 31) << 3 | 4, (k & 31) << 3 | 4]; }

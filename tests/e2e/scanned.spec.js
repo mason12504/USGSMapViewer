@@ -27,6 +27,17 @@ test.describe('Scanned map from saved results', () => {
     expect(Math.abs(m.natural - m.shown)).toBeLessThan(0.01);
   });
 
+  test('color evidence: a header figure, a note on each label, and click-anywhere identification', async ({ page }) => {
+    await expect(page.getByText(/color nearby \d+%/)).toBeVisible({ timeout: 60_000 });
+    await page.locator('[data-testid="map-label"][data-code="Kd"]').first().click();
+    await expect(page.getByTestId('color-check')).toContainText(/legend color|No block of this unit/);
+    // Click bare map: the closest legend colors are listed, with percentages.
+    const box = await page.getByTestId('map-image').boundingBox();
+    await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.4);
+    await expect(page.getByTestId('identify-note')).toContainText('legend swatch');
+    await expect(page.getByTestId('identify-candidates').locator('li').first()).toContainText('%');
+  });
+
   test('clicking a label shows its unit, how it was read, and the legend text', async ({ page }) => {
     await page.locator('[data-testid="map-label"][data-code="Kd"]').first().click();
     const details = page.getByTestId('unit-details');

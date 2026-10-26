@@ -96,6 +96,16 @@ It is a **dry run unless you add `--run`**, and prints the planned calls first. 
 with its legend and clickable labels (and works in mock mode: no API is involved). If not, the app tells you which two commands to run.
 The browser itself never starts a paid call for a scan.
 
+**Color on a scan.** Vector PDFs match exact paints; a scan only has pixels, so color is a *hint* (`src/lib/scan/colorCheck.js`).
+For each label the app checks whether a connected block of the label's unit color (measured from its legend swatch) lies within
+`NEIGHBOURHOOD_FACTOR` (1.5) x the swatch's long side of the text, so a code over one formation whose leader line points at a small
+block of another still checks out (`MIN_BLOCK_PT2` sets how small a block counts; `TOUCH_PT` what "at the text" means). Units whose swatches
+look identical form one color group. Clicking the map names the closest legend colors with percentages. Paper is ignored.
+Tune the constants at the top of that file; `npm run scan:color -- <name> [--radius-factor 1.5]` reports how well color agrees with the labels.
+On the Leadville sheet (722 labels): the label's unit has a block in the radius for 87% of labels (a random other unit: 37%), touching the text
+for 52%; the unit with the nearest block is the label's only 27% of the time, because a median of 19 of 73 color groups are in range.
+So color is good at flagging doubtful reads (91% for Claude's high-confidence reads, 45% for low-confidence ones) and weak at identifying a unit alone.
+
 ## Dev environment and security model
 
 Dev container with Claude Code, based on a stricter container used for
