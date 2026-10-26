@@ -64,6 +64,33 @@ and drop in `fixtures/pikeview/OF-01-03_Pikeview_Geologic_Map.pdf`.
 Mocks prove our code handles AI responses; they can't prove the AI is
 *right*. That's what the live, manual evals are for.
 
+## API spending controls (live mode)
+
+Every paid call is visible and bounded. Mock mode has none of this (it costs nothing).
+
+- **Cache.** Responses are stored in `.cache/anthropic/` (git-ignored), keyed by a hash of the model, the exact
+  prompt, and the image. An identical request is answered from disk at no charge, and it survives restarts.
+  Delete the folder to start fresh. Failures are never cached.
+- **Daily cap.** `MAX_CALLS_PER_DAY` (default 50) paid calls per local day, counted in `.cache/anthropic/usage-YYYY-MM-DD.json`.
+  Past the cap the server answers 429 and never contacts Anthropic; cache hits still work. Failed calls count.
+- **Logging.** One line per call: `LIVE call ... in=... out=... tokens | today 3/50`, and `CACHE HIT (no charge)`.
+  `GET /api/usage` returns the same numbers; the header chip shows `API: live · 3/50 today` (hover for tokens).
+- **Dollars (optional).** Set `PRICE_IN_PER_MTOK` and `PRICE_OUT_PER_MTOK` (USD per million tokens) to see an estimate; prices change, so none are built in.
+- **In the `api-real` container** the code mount is read-only, so the cache and ledger need a writable volume
+  (set `CACHE_DIR`); without one the cache switches itself off and the cap is counted in memory only.
+
+## Scanned maps (experimental)
+
+`npm run scan -- <scan.pdf>` makes a first local pass over a PDF that is only a picture: it finds the legend swatch
+columns, reads the legend text and swatch codes with OCR, finds label-like blobs on the map, and writes a
+searchable copy of the PDF plus review images to `.lab/scan/<name>/`. It makes **no API calls**; the pictures it
+prepares (`swatch-strip.png`, `label-sheet-N.png`) are what a later, paid step would send for the parts OCR cannot read.
+Results are cached by file hash in `.cache/scan/`.
+
+`npm run scan:ai -- <name>` is the paid follow-up: it sends the numbered swatch sheet (1 call) and the label sheets
+(1 call per ~100 labels) to Claude through the local live API server, so the cache, daily cap and logging above apply.
+It is a **dry run unless you add `--run`**, and prints the planned calls first. Results land in `resolved.json`.
+
 ## Dev environment and security model
 
 Dev container with Claude Code, based on a stricter container used for

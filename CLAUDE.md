@@ -34,6 +34,8 @@ npm run lint
 npm run build
 npm run parse -- <pdf> [--json out.json]     # parse a PDF from the CLI
 npm run color:lab -- <pdf>                   # color-matching workbench → .lab/
+npm run scan -- <scan.pdf>                   # SCANNED map first pass, all local, no API → .lab/scan/
+npm run scan:ai -- <name> [--run]            # paid follow-up via the live API server; DRY RUN without --run
 ```
 
 Run `npm test` and `npm run lint` before committing. Run `npm run test:e2e` when
@@ -52,11 +54,13 @@ src/lib/                 environment-agnostic parsing pipeline (runs in browser 
   legend/legend.js       legend entries: swatch + bold "Name (Age)—" + description
   labels/mapLabels.js    map frame + labels inside it
   color/                 COLOR COMPARTMENT: see src/lib/color/README.md
+  scan/                  scanned maps: swatch columns, label blobs, legend text → entries (pixels in, no I/O)
 src/pdf/pdfjs.browser.js pdf.js setup for the browser (assets served locally, no CDN)
 src/hooks/useMapParser.js browser orchestration (parse → render → swatch previews)
 src/components/          UI
 src/fallback/scanned.js  OCR + AI path for scanned maps (UNTESTED, no fixture yet)
 server/                  Express API: mock/live modes; key only in live mode
+  cache.js, usage.js     live mode only: response cache (.cache/anthropic) + daily call cap/ledger
 scripts/                 CLI tools (parse, color lab) + Node pdf.js helper
 tests/unit, tests/fixtures, tests/server, tests/e2e
 fixtures/pikeview/       real public map + expected-units.json (ground truth)

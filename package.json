@@ -19,7 +19,9 @@
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "color:lab": "node scripts/color-lab.js",
-    "parse": "node scripts/parse-pdf.js"
+    "parse": "node scripts/parse-pdf.js",
+    "scan": "node scripts/scan-pdf.js",
+    "scan:ai": "node scripts/scan-ai.js"
   },
   "dependencies": {
     "express": "5.3.0",
@@ -33,12 +35,14 @@
     "@eslint/js": "9.39.5",
     "@napi-rs/canvas": "1.0.13",
     "@playwright/test": "1.63.0",
+    "@tesseract.js-data/eng": "1.0.0",
     "@vitejs/plugin-react": "5.2.0",
     "autoprefixer": "10.6.1",
     "concurrently": "10.0.6",
     "eslint": "9.39.5",
     "eslint-plugin-react-hooks": "5.2.0",
     "globals": "17.13.0",
+    "pdf-lib": "1.17.1",
     "postcss": "8.5.31",
     "supertest": "7.3.1",
     "tailwindcss": "3.4.19",
