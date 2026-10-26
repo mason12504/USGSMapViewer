@@ -19,9 +19,10 @@ export default function App() {
   const [showFrame, setShowFrame] = useState(false); // outline of the map frame
   const [api, setApi] = useState(null);
 
+  // Re-read after each load and each AI check, so the call counter stays current.
   useEffect(() => {
     getHealth().then(setApi);
-  }, []);
+  }, [state.status, aiOpen]);
 
   const legendByKey = useMemo(
     () => Object.fromEntries((state.result?.legend || []).map((e) => [e.key, e])),
@@ -71,8 +72,9 @@ export default function App() {
             </Chip>
           )}
           {api && (
-            <Chip tone={api.mode === 'live' ? 'green' : api.ok ? 'amber' : 'red'}>
+            <Chip tone={api.mode === 'live' ? 'green' : api.ok ? 'amber' : 'red'} title={usageTitle(api.usage)} testId="api-chip">
               API: {api.ok ? api.mode : 'offline'}
+              {api.usage && ` · ${api.usage.calls}/${api.usage.cap} today`}
             </Chip>
           )}
         </div>
@@ -177,6 +179,13 @@ const CHIP_TONES = {
   amber: 'bg-amber-500/15 text-amber-300',
   red: 'bg-red-500/15 text-red-300',
 };
+
+/** Tooltip for the API chip: what has been spent today. */
+function usageTitle(u) {
+  if (!u) return undefined;
+  const usd = u.estimatedUsd != null ? `, about ${u.estimatedUsd.toFixed(2)}` : '';
+  return `${u.calls} paid call(s) today of ${u.cap} allowed; ${u.cacheHits} answered from the cache for free. ${u.inputTokens.toLocaleString()} tokens in, ${u.outputTokens.toLocaleString()} out${usd}.`;
+}
 
 function Chip({ children, tone = 'slate', title, testId }) {
   return (

@@ -26,3 +26,6 @@ fixtures/_recorded/*
 .DS_Store
 Thumbs.db
 npm-debug.log*
+
+# API response cache + daily usage ledger
+.cache/

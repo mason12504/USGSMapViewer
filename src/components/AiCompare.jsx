@@ -41,7 +41,9 @@ export default function AiCompare({ legend, getLegendImage, onClose }) {
           <h2 className="font-semibold">AI legend check</h2>
           {state.mode && (
             <span className={`rounded px-2 py-0.5 text-xs ${state.mode === 'mock' ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
-              {state.mode === 'mock' ? 'MOCK response' : `live · ${state.model}`}
+              {state.mode === 'mock'
+                ? 'MOCK response'
+                : `live · ${state.model} · ${state.cached ? 'from cache, no charge' : `${(state.tokens?.input ?? 0).toLocaleString()} in / ${(state.tokens?.output ?? 0).toLocaleString()} out tokens`}`}
             </span>
           )}
           <button type="button" onClick={onClose} aria-label="Close" className="ml-auto rounded p-1 text-slate-400 hover:bg-slate-800">

@@ -25,9 +25,17 @@ export function loadConfig(env = process.env) {
   const mock = env.MOCK_ANTHROPIC === '1' || env.MOCK_ANTHROPIC === 'true';
   const mockFile = env.MOCK_RESPONSE_FILE || path.resolve('fixtures/mock/anthropic-parse-legend.json');
   const recordDir = env.RECORD_DIR || null;
+  const num = (v, d) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d);
+  // Spend controls (live mode). Cache + daily ledger live in one folder.
+  const spend = {
+    cacheDir: env.CACHE_DIR || path.resolve('.cache/anthropic'),
+    maxCallsPerDay: num(env.MAX_CALLS_PER_DAY, 50),
+    priceInPerMTok: num(env.PRICE_IN_PER_MTOK, null),
+    priceOutPerMTok: num(env.PRICE_OUT_PER_MTOK, null),
+  };
 
   if (mock) {
-    return { mode: 'mock', port, host, mockFile, model: env.ANTHROPIC_MODEL || DEFAULT_MODEL, recordDir: null };
+    return { mode: 'mock', port, host, mockFile, model: env.ANTHROPIC_MODEL || DEFAULT_MODEL, recordDir: null, ...spend };
   }
 
   const root = env.PRIVATE_ROOT;
@@ -51,6 +59,7 @@ export function loadConfig(env = process.env) {
     host,
     model: secrets.ANTHROPIC_MODEL || env.ANTHROPIC_MODEL || DEFAULT_MODEL,
     recordDir,
+    ...spend,
   };
   // Non-enumerable: invisible to JSON.stringify, console.log, and object spread.
   // (A plain getter is NOT enough — JSON.stringify calls enumerable getters.)
@@ -60,5 +69,8 @@ export function loadConfig(env = process.env) {
 
 /** Safe-to-log view of a config. */
 export function describeConfig(c) {
-  return { mode: c.mode, host: c.host, port: c.port, model: c.model, recording: Boolean(c.recordDir) };
+  return {
+    mode: c.mode, host: c.host, port: c.port, model: c.model, recording: Boolean(c.recordDir),
+    cacheDir: c.mode === 'live' ? c.cacheDir : null, maxCallsPerDay: c.mode === 'live' ? c.maxCallsPerDay : null,
+  };
 }
