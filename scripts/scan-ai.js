@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './lib/node-pdf.js';
 import { nearestCode } from '../src/lib/scan/vocab.js';
+import { canonicalCode, isCanonicalCode } from '../src/lib/scan/glyphs.js';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
@@ -34,7 +35,6 @@ const only = opt('--only');
 const maxCalls = Number(opt('--max-calls', 20));
 const MERGE_ONLY = flag('--merge-only');
 const RUN = flag('--run') && !MERGE_ONLY;
-const VOCAB_RE = /^[A-Za-z0-9]{1,8}$/;
 
 if (!fs.existsSync(path.join(dir, 'scan.json'))) {
   console.error(`No scan.json in ${dir}. Run  npm run scan -- <pdf>  first.`);
@@ -163,8 +163,9 @@ try {
     }
   }
   // The legend's own codes are the vocabulary for reading labels.
+  // Codes as printed ("M€r") are kept for display; the API and all matching use the plain-letter form ("MCr").
   const finalCode = (s) => aiCodes.get(s.index)?.code ?? (s.confidence >= 70 && /^[A-Za-z0-9]{2,8}$/.test(s.code) ? s.code : null);
-  const vocabulary = [...new Set(scan.swatches.map(finalCode).filter((c) => c && VOCAB_RE.test(c)))];
+  const vocabulary = [...new Set(scan.swatches.map(finalCode).map(canonicalCode).filter((c) => c && isCanonicalCode(c)))];
   if (!vocabulary.length) throw new Error('No legend codes known, so labels cannot be read. Run the swatches step first.');
   for (const step of plan) {
     if (step.kind !== 'labels') continue;
@@ -184,9 +185,9 @@ const finalSwatches = scan.swatches.map((s) => {
   const ai = aiCodes.get(s.index);
   const ocrOk = s.confidence >= 70 && /^[A-Za-z0-9]{2,8}$/.test(s.code);
   const code = ai?.code ?? (ocrOk ? s.code : null);
-  return { index: s.index, ocr: s.code, ocrConfidence: s.confidence, ai: ai?.code ?? null, aiConfidence: ai?.confidence ?? null, code, source: ai?.code ? 'ai' : ocrOk ? 'ocr' : null };
+  return { index: s.index, ocr: s.code, ocrConfidence: s.confidence, ai: ai?.code ?? null, aiConfidence: ai?.confidence ?? null, code, key: code ? canonicalCode(code) : null, source: ai?.code ? 'ai' : ocrOk ? 'ocr' : null };
 });
-const vocab = new Set(finalSwatches.map((s) => s.code).filter(Boolean));
+const vocab = new Set(finalSwatches.map((s) => s.key).filter(Boolean)); // plain-letter keys
 const asked = finalSwatches.filter((s) => aiCodes.has(s.index));
 const agree = asked.filter((s) => s.ocrConfidence >= 70 && s.ocr === s.ai).length;
 const disagree = asked.filter((s) => s.ocrConfidence >= 70 && s.ai && s.ocr !== s.ai);
@@ -197,14 +198,14 @@ const vocabList = [...vocab];
 // texts that are not themselves a real code (OCR "Tg" on swatch #26 must not rewrite genuine Tg labels).
 const alias = new Map();
 for (const s of finalSwatches) {
-  if (s.ai && s.ocr && s.ocrConfidence >= 70 && s.ocr !== s.ai && !vocab.has(s.ocr)) {
+  if (s.ai && s.ocr && s.ocrConfidence >= 70 && s.ocr !== s.ai && !vocab.has(canonicalCode(s.ocr))) {
     alias.set(s.ocr, alias.has(s.ocr) && alias.get(s.ocr) !== s.ai ? null : s.ai); // two different answers: ambiguous
   }
 }
 const finalLabels = scan.labels.map((l) => {
   if (l.inVocabulary) {
     // OCR matched the legend as OCR first read it; check against the final codes.
-    if (vocab.has(l.text)) return { ...l, final: l.text, source: 'ocr' };
+    if (vocab.has(canonicalCode(l.text))) return { ...l, final: canonicalCode(l.text), source: 'ocr' };
     const near = alias.get(l.text) ? { code: alias.get(l.text) } : nearestCode(l.text, vocabList);
     return near
       ? { ...l, final: near.code, source: 'ocr+legend', corrected: l.text }
@@ -214,8 +215,14 @@ const finalLabels = scan.labels.map((l) => {
   // Claude lists only the cells that hold a code, so on a sheet that was read, a missing cell is "not a code".
   if (!r && l.sheet && sheetsRead.has(l.sheet)) return { ...l, ai: null, aiKind: 'not-a-code', final: null, source: null };
   if (!r) return { ...l, final: null, source: null };
-  const kind = r.text == null ? 'not-a-code' : vocab.has(r.text) ? 'legend-code' : 'novel';
-  return { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: kind, final: kind === 'legend-code' ? r.text : null, source: kind === 'legend-code' ? 'ai' : null };
+  const text = r.text == null ? null : canonicalCode(r.text);
+  if (text == null) return { ...l, ai: null, aiConfidence: r.confidence, aiKind: 'not-a-code', final: null, source: null };
+  if (vocab.has(text)) return { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: 'legend-code', final: text, source: 'ai' };
+  // Not a legend code as read: one close to exactly one legend code is a misread of it ("OCr" for "O€r").
+  const near = nearestCode(text, vocabList);
+  return near
+    ? { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: 'legend-code', final: near.code, source: 'ai+legend', corrected: text }
+    : { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: 'novel', final: null, source: null };
 });
 const readByAi = finalLabels.filter((l) => l.aiKind);
 const corrected = finalLabels.filter((l) => l.source === 'ocr+legend');

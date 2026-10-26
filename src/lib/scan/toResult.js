@@ -7,6 +7,7 @@
 import { RESULT_VERSION } from '../pipeline.js';
 import { titleCaseIfShouting } from '../legend/legend.js';
 import { ageForCode, normalizeCode } from '../units/unitCodes.js';
+import { canonicalCode } from './glyphs.js';
 
 const hex = ([r, g, b]) => `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 const nice = (s) => titleCaseIfShouting((s || '').replace(/[\s:]+$/, '').trim());
@@ -31,7 +32,8 @@ export function scanResultFromResolved(resolved) {
       if (!e.swatch && e.name && e.name === e.name.toUpperCase() && /[A-Z]{4,}/.test(e.name)) group = { name: nice(e.name) };
       continue;
     }
-    const key = normalizeCode(e.code);
+    // Matching uses the plain-letter form ("MCr"); the legend keeps the code as printed ("M€r").
+    const key = normalizeCode(canonicalCode(e.code));
     if (seen.has(key)) continue; // a code read twice: keep the first
     seen.add(key);
     const color = hex(e.swatch.color || [128, 128, 128]);
@@ -59,16 +61,18 @@ export function scanResultFromResolved(resolved) {
   }
 
   const known = new Set(legend.map((e) => e.key));
+  const byKey = Object.fromEntries(legend.map((e) => [e.key, e]));
   const labels = [];
   const plateLabels = [];
   for (const l of resolved.labels || []) {
-    if (!l.final || !known.has(normalizeCode(l.final))) continue;
+    const lkey = l.final ? normalizeCode(canonicalCode(l.final)) : null;
+    if (!lkey || !known.has(lkey)) continue;
     const c = { x: (l.bbox.x0 + l.bbox.x1) / 2, y: (l.bbox.y0 + l.bbox.y1) / 2 };
     const inMap = c.x >= mapBox.x0 && c.x <= mapBox.x1 && c.y >= mapBox.y0 && c.y <= mapBox.y1;
     const label = {
       id: inMap ? labels.length : `p${plateLabels.length}`,
-      code: l.final,
-      key: normalizeCode(l.final),
+      code: byKey[lkey].code, // as printed in the legend
+      key: lkey,
       uncertain: false,
       bbox: { ...l.bbox },
       codeBbox: { ...l.bbox },

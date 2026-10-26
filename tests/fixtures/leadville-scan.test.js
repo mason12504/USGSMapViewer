@@ -14,6 +14,13 @@ const resolved = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures/leadville-
 const { result } = scanResultFromResolved(resolved);
 
 describe('Leadville scan (real saved results)', () => {
+  it('keeps the barred-C units: shown as printed, matched by plain letters, with labels', () => {
+    const cambrian = result.legend.filter((e) => /€/.test(e.code));
+    expect(cambrian.map((e) => [e.code, e.key]).sort()).toEqual([['M€r', 'MCr'], ['O€r', 'OCr']]);
+    expect(cambrian.every((e) => e.labelCount > 0)).toBe(true);
+    expect(result.labels.some((l) => l.code === 'M€r' && l.key === 'MCr')).toBe(true);
+  });
+
   it('has the sheet geometry and a hash to be found by', () => {
     expect(resolved.fileSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(result.page).toEqual({ width: 3056, height: 2269 });
@@ -38,8 +45,8 @@ describe('Leadville scan (real saved results)', () => {
   it('only has labels whose code is a legend code, and most units have at least one', () => {
     const codes = new Set(result.legend.map((e) => e.key));
     const all = [...result.labels, ...result.plateLabels];
-    expect(all.length).toBeGreaterThan(250);
+    expect(all.length).toBeGreaterThan(600);
     expect(all.every((l) => codes.has(l.key))).toBe(true);
-    expect(result.legend.filter((e) => e.labelCount > 0).length).toBeGreaterThan(50);
+    expect(result.legend.filter((e) => e.labelCount > 0)).toHaveLength(73); // every unit has a label
   });
 });

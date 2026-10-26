@@ -199,6 +199,16 @@ describe('scanResultFromResolved (a scan opened in the app)', () => {
     expect(result.labels[1].read).toEqual({ by: 'ai', confidence: 'medium', ocrText: null });
   });
 
+  it('shows a printed glyph as printed but matches it by plain letters', () => {
+    const { result: r } = scanResultFromResolved({
+      page: { width: 500, height: 400 }, map: { x0: 0, y0: 0, x1: 500, y1: 400 },
+      entries: [{ column: 0, code: 'M€r', name: 'X', ageText: null, description: '', swatch: { x0: 1, y0: 1, x1: 41, y1: 19, color: [9, 9, 9] } }],
+      labels: [{ final: 'MCr', source: 'ai', bbox: { x0: 100, y0: 100, x1: 120, y1: 110 } }],
+    });
+    expect(r.legend[0]).toMatchObject({ code: 'M€r', key: 'MCr' });
+    expect(r.labels[0]).toMatchObject({ code: 'M€r', key: 'MCr' });
+  });
+
   it('looks like any other result to the viewer, with no color analysis', () => {
     expect(result.mapRegion).toEqual({ bbox: resolved.map, method: 'scan' });
     expect(result.color.primary).toBeNull();

@@ -113,7 +113,7 @@ export function buildLabelSheetPrompt(vocabulary, cells) {
 Each cell has a red number at its top-left; the crop is to its right. Most crops are unit labels:
 short codes naming a rock unit. Some crops are place names, elevations, symbols or noise.
 
-Valid unit codes from this map's legend (a barred "P" is written "IP"):
+Valid unit codes from this map's legend (a barred "P" is written "IP", a barred "C" or "€" is written "C"):
 ${vocabulary.join(', ')}
 
 List ONLY the cells that contain a unit code. If a crop clearly matches a valid code, return that code
