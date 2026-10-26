@@ -23,6 +23,29 @@ export const MIN_BLOCK_PT2 = 6;
 /** A unit's block this close (pt) to the label's text counts as "right at the text". */
 export const TOUCH_PT = 3;
 
+/** The strip around the text that says what the label sits ON (pt outside its box). */
+export const RING_PT = { inner: 1.5, outer: 7 };
+
+/** A color group "dominates the text" if it holds at least this share of the classified pixels in that strip. */
+export const MIN_DOMINANT_SHARE = 0.4;
+
+/**
+ * The read unit's color touching the text is not enough when a twin's color outweighs it: if its share of the strip
+ * beside the text is at most this fraction of the dominant twin's share, the label is a conflict anyway (a thin
+ * sliver of the read unit's color at the edge of a big field of the twin's).
+ */
+export const OUTWEIGHED_RATIO = 0.5;
+
+/** Fewest classified pixels (on the sampling grid) in the strip before we trust a dominant color. */
+export const MIN_RING_CELLS = 12;
+
+/**
+ * Two codes this close (glyph-aware edit distance, see vocab.js) are "twins": the kind of pair a reader mixes up
+ * (MDr / MCr). A color block of a twin's unit under the text, with the read unit's color only nearby, is a CONFLICT
+ * (probably misread); the same situation with an unrelated code is a leader line to a block elsewhere.
+ */
+export const TWIN_DISTANCE = 1;
+
 /**
  * Units whose swatches are within this palette distance cannot be told apart by color (a unit and its
  * sub-units are often printed in the same ink). They form one COLOR GROUP: a block of the group's color
@@ -50,6 +73,7 @@ import { swatchPalette } from '../color/rasterMatch.js';
 import { summarize } from '../color/vectorMatch.js';
 import { deltaE } from '../color/colorMath.js';
 import { paperColor } from './raster.js';
+import { codeDistance } from './vocab.js';
 
 const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 
@@ -160,23 +184,26 @@ export function estimatePaper(sampler, boxes = null, { maxChroma = 28, grid = [2
 }
 
 /**
- * Color evidence for one label: which units have a BLOCK of their color around it?
+ * Color evidence for one label: what is under the text, and where is the color of the unit it names?
  *
- * Classifies a disc of `radiusPt` around the label, finds connected blocks of each unit's color of at least
- * `minBlockPt2`, and measures how far the nearest block of each unit is from the text. A label sitting on
- * its own formation has a block touching the text; one whose leader points at a small block elsewhere has
- * that block somewhere in the disc; one whose unit is nowhere near is suspicious (a misread, or margin text).
+ * Classifies a disc of `radiusPt` around the label into color groups, finds connected blocks of at least
+ * `minBlockPt2`, and measures (1) how far the nearest block of each group is from the text, and (2) which group
+ * dominates the strip right beside the text. Verdict, first match wins:
+ *   conflict   a TWIN code's color (MDr / MCr) dominates the text and the read unit's color does not touch it,
+ *              or only as a sliver (a fraction `outweighed` of the twin's share): probably misread (`suggest`)
+ *   confirmed  the read unit's color has a block touching the text
+ *   leader     the read unit's color has a block elsewhere in the disc and nothing twin-like explains the text
+ *              (code over one formation, leader line to a small block of its own unit)
+ *   doubtful   no block of the read unit's color anywhere near
  *
- * @returns {method, predicted, agrees, directAgrees, supports, via, distance, nearestPt, top3, nearbyUnits}
- *   predicted     the unit key(s) of the color group whose block is nearest the text (what the color says)
- *   directAgrees  the label's unit has a block touching the text (within touchPt): strict
- *   supports      the label's unit has a block anywhere in the disc
- *   agrees        directAgrees or supports (then via: 'leader': nearby, not at the text)
- *   nearestPt     distance (pt) from the text to the label unit's nearest block
- *   top3          the three color groups with the nearest blocks [{key, keys, distancePt}]
- *   nearbyUnits   how many different color groups have a block in the disc: the larger, the less a match tells
+ * @returns {method, verdict, agrees, directAgrees, supports, via, suggest, atText, nearestPt, distance, predicted, top3, nearbyUnits}
+ *   agrees   confirmed or leader   suggest   unit keys of the twin whose color is under the text (conflict only)
+ *   atText   the color groups beside the text, biggest first: [{key, keys, share}]
+ *   predicted  the unit key(s) of the group dominating the text, else of the nearest block
+ *   top3     the three color groups with the nearest blocks [{key, keys, distancePt}]
+ *   nearbyUnits  how many color groups have a block in the disc (the larger, the less any one match tells)
  */
-export function checkLabel(sampler, classify, label, { radiusPt, minBlockPt2 = MIN_BLOCK_PT2, touchPt = TOUCH_PT, stride = 2 } = {}) {
+export function checkLabel(sampler, classify, label, { radiusPt, minBlockPt2 = MIN_BLOCK_PT2, touchPt = TOUCH_PT, stride = 2, ring = RING_PT, minDominant = MIN_DOMINANT_SHARE, twinDistance = TWIN_DISTANCE, outweighed = OUTWEIGHED_RATIO } = {}) {
   const groups = classify.groups;
   const target = classify.groupIndex.get(label.key) ?? -1;
   const b = label.bbox;
@@ -184,19 +211,26 @@ export function checkLabel(sampler, classify, label, { radiusPt, minBlockPt2 = M
   let box = { x0: cx - radiusPt, y0: cy - radiusPt, x1: cx + radiusPt, y1: cy + radiusPt };
   const r = sampler.region;
   if (r) box = { x0: Math.max(box.x0, r.x0), y0: Math.max(box.y0, r.y0), x1: Math.min(box.x1, r.x1), y1: Math.min(box.y1, r.y1) };
-  const none = { method: 'raster', predicted: [], agrees: false, directAgrees: false, supports: false, via: null, distance: null, nearestPt: null, top3: [], nearbyUnits: 0 };
+  const none = { method: 'raster', verdict: 'doubtful', predicted: [], agrees: false, directAgrees: false, supports: false, via: null, suggest: [], atText: [], distance: null, nearestPt: null, top3: [], nearbyUnits: 0 };
   if (box.x1 <= box.x0 || box.y1 <= box.y0) return none;
 
   const px = sampler.getPixels(box);
   const step = stride / sampler.scale; // pt per grid cell
   const gw = Math.ceil(px.width / stride), gh = Math.ceil(px.height / stride);
   const cls = new Int16Array(gw * gh).fill(-1);
+  const beside = new Array(groups.length).fill(0);
+  let besideTotal = 0;
   for (let gy = 0; gy < gh; gy++) {
     for (let gx = 0; gx < gw; gx++) {
       const x = box.x0 + gx * step, y = box.y0 + gy * step;
       if (Math.hypot(x - cx, y - cy) > radiusPt) continue;
       const i = (gy * stride * px.width + gx * stride) * 4;
-      if (px.data[i + 3] >= 128) cls[gy * gw + gx] = classify(px.data[i], px.data[i + 1], px.data[i + 2]);
+      if (px.data[i + 3] < 128) continue;
+      const c = classify(px.data[i], px.data[i + 1], px.data[i + 2]);
+      cls[gy * gw + gx] = c;
+      if (c < 0) continue;
+      const out = Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.y0 - y, 0, y - b.y1));
+      if (out >= ring.inner && out <= ring.outer) { beside[c]++; besideTotal++; }
     }
   }
 
@@ -228,17 +262,33 @@ export function checkLabel(sampler, classify, label, { radiusPt, minBlockPt2 = M
   }
 
   const ranked = nearest.map((d, i) => ({ keys: groups[i], distancePt: d })).filter((u) => Number.isFinite(u.distancePt)).sort((a, z) => a.distancePt - z.distancePt);
-  if (!ranked.length) return none;
+  const atText = besideTotal >= MIN_RING_CELLS
+    ? beside.map((n, i) => ({ key: groups[i][0], keys: groups[i], share: n / besideTotal })).filter((g) => g.share > 0).sort((a, z) => z.share - a.share).slice(0, 3).map((g) => ({ ...g, share: +g.share.toFixed(2) }))
+    : [];
+  if (!ranked.length && !atText.length) return none;
+
   const own = target >= 0 ? nearest[target] : Infinity;
   const directAgrees = own <= touchPt;
   const supports = Number.isFinite(own);
+  const dominant = atText[0] && atText[0].share >= minDominant ? atText[0] : null;
+  const dominantIsOwn = dominant && groups.indexOf(dominant.keys) === target;
+  const ownShare = target >= 0 && besideTotal >= MIN_RING_CELLS ? beside[target] / besideTotal : 0;
+  // A twin of the read, in the color that dominates the text, while the read unit's own color is not at the text
+  // (or only a sliver of it is).
+  const twinsWin = dominant && !dominantIsOwn && (!directAgrees || ownShare <= outweighed * dominant.share);
+  const twins = twinsWin ? dominant.keys.filter((k) => codeDistance(label.key, k) <= twinDistance) : [];
+  const verdict = twins.length ? 'conflict' : directAgrees ? 'confirmed' : supports ? 'leader' : 'doubtful';
   return {
     method: 'raster',
-    predicted: [...ranked[0].keys],
-    agrees: directAgrees || supports,
+    verdict,
+    predicted: dominant ? [...dominant.keys] : ranked.length ? [...ranked[0].keys] : [],
+    agrees: verdict === 'confirmed' || verdict === 'leader',
     directAgrees,
+    ownShare: +ownShare.toFixed(2),
     supports,
-    via: !directAgrees && supports ? 'leader' : null,
+    via: verdict === 'leader' ? 'leader' : null,
+    suggest: twins,
+    atText,
     distance: supports ? +own.toFixed(1) : null,
     nearestPt: supports ? +own.toFixed(1) : null,
     top3: ranked.slice(0, 3).map((u) => ({ key: u.keys[0], keys: u.keys, distancePt: +u.distancePt.toFixed(1) })),
@@ -250,7 +300,8 @@ export function checkLabel(sampler, classify, label, { radiusPt, minBlockPt2 = M
 export function summarizeChecks(perLabel, radiusPt) {
   const base = summarize(perLabel);
   const direct = perLabel.filter((p) => p.directAgrees).length;
-  return { ...base, directAgree: direct, directAccuracy: perLabel.length ? direct / perLabel.length : 0, radiusPt: +radiusPt.toFixed(1) };
+  const conflicts = perLabel.filter((p) => p.verdict === 'conflict').length;
+  return { ...base, directAgree: direct, directAccuracy: perLabel.length ? direct / perLabel.length : 0, conflicts, radiusPt: +radiusPt.toFixed(1) };
 }
 
 /**

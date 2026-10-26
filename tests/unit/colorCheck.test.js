@@ -36,10 +36,10 @@ function makeMap() {
     },
   };
   const legend = [
-    { key: 'Ka', swatch: { bbox: { x0: 340, y0: 10, x1: 380, y1: 28 } } },
-    { key: 'Kb', swatch: { bbox: { x0: 340, y0: 40, x1: 380, y1: 58 } } },
-    { key: 'Kc', swatch: { bbox: { x0: 340, y0: 70, x1: 380, y1: 88 } } },
-    { key: 'Kp', swatch: { bbox: { x0: 340, y0: 100, x1: 380, y1: 118 } } },
+    { key: 'Qal', swatch: { bbox: { x0: 340, y0: 10, x1: 380, y1: 28 } } },
+    { key: 'Tbr', swatch: { bbox: { x0: 340, y0: 40, x1: 380, y1: 58 } } },
+    { key: 'Yxg', swatch: { bbox: { x0: 340, y0: 70, x1: 380, y1: 88 } } },
+    { key: 'Zpa', swatch: { bbox: { x0: 340, y0: 100, x1: 380, y1: 118 } } },
   ];
   return { sampler, legend };
 }
@@ -61,51 +61,51 @@ describe('colorCheck: neighbourhood rule', () => {
   });
 
   it('a code on its own formation agrees directly', () => {
-    const c = checkLabel(sampler, classify, labelAt('Ka', 60, 200), { radiusPt });
-    expect(c).toMatchObject({ directAgrees: true, agrees: true, via: null, predicted: ['Ka'] });
+    const c = checkLabel(sampler, classify, labelAt('Qal', 60, 200), { radiusPt });
+    expect(c).toMatchObject({ directAgrees: true, agrees: true, via: null, predicted: ['Qal'] });
   });
 
   it('a code over formation A whose leader points at a small B block is supported by the neighbourhood', () => {
-    const c = checkLabel(sampler, classify, labelAt('Kb', 130, 90), { radiusPt }); // B block ~35 pt away
+    const c = checkLabel(sampler, classify, labelAt('Tbr', 130, 90), { radiusPt }); // B block ~35 pt away
     expect(c.directAgrees).toBe(false);
-    expect(c.predicted).toEqual(['Ka']); // what is under the text
+    expect(c.predicted).toEqual(['Qal']); // what is under the text
     expect(c.supports).toBe(true);
     expect(c.agrees).toBe(true);
     expect(c.via).toBe('leader');
     expect(c.nearestPt).toBeGreaterThan(20);
     expect(c.nearestPt).toBeLessThan(40);
-    expect(c.top3[0].key).toBe('Ka');
-    expect(c.top3.map((u) => u.key)).toContain('Kb');
+    expect(c.top3[0].key).toBe('Qal');
+    expect(c.top3.map((u) => u.key)).toContain('Tbr');
     expect(c.nearbyUnits).toBeGreaterThanOrEqual(2);
   });
 
   it('the same label fails when the radius is too small to reach the block (the factor matters)', () => {
-    const small = checkLabel(sampler, classify, labelAt('Kb', 130, 90), { radiusPt: neighbourhoodRadiusPt(legend, 0.5) });
+    const small = checkLabel(sampler, classify, labelAt('Tbr', 130, 90), { radiusPt: neighbourhoodRadiusPt(legend, 0.5) });
     expect(small.supports).toBe(false);
     expect(small.agrees).toBe(false);
   });
 
   it('a code whose unit is nowhere nearby disagrees, and says what the color looks like', () => {
-    const c = checkLabel(sampler, classify, labelAt('Kc', 60, 250), { radiusPt }); // C is 140 pt away
-    expect(c).toMatchObject({ agrees: false, supports: false, predicted: ['Ka'] });
+    const c = checkLabel(sampler, classify, labelAt('Yxg', 60, 250), { radiusPt }); // C is 140 pt away
+    expect(c).toMatchObject({ agrees: false, supports: false, predicted: ['Qal'] });
     expect(c.nearestPt).toBeNull();
   });
 
   it('reports no evidence (rather than a guess) when nothing matches the legend', () => {
-    const c = checkLabel(sampler, paperAware, labelAt('Ka', 365, 250), { radiusPt: 10 }); // plain paper
+    const c = checkLabel(sampler, paperAware, labelAt('Qal', 365, 250), { radiusPt: 10 }); // plain paper
     expect(c.predicted).toEqual([]);
     expect(c.agrees).toBe(false);
   });
 
   it('counts a tiny block of a unit, which a percent-of-the-area rule would lose, but not a speck', () => {
-    const tiny = labelAt('Kb', 60, 140); // a 3 x 3 pt speck of B (9 square pt) sits just below
+    const tiny = labelAt('Tbr', 60, 140); // a 3 x 3 pt speck of B (9 square pt) sits just below
     expect(checkLabel(sampler, classify, tiny, { radiusPt })).toMatchObject({ supports: true, directAgrees: false });
     expect(checkLabel(sampler, classify, tiny, { radiusPt, minBlockPt2: 20 }).supports).toBe(false); // demand bigger blocks
   });
 
   it('does not mistake bare paper for a pale unit once the paper color is known', () => {
-    const margin = labelAt('Kp', 365, 250);
-    expect(checkLabel(sampler, classify, margin, { radiusPt: 25 }).predicted).toEqual(['Kp']); // paper looks like the pale unit
+    const margin = labelAt('Zpa', 365, 250);
+    expect(checkLabel(sampler, classify, margin, { radiusPt: 25 }).predicted).toEqual(['Zpa']); // paper looks like the pale unit
     expect(estimatePaper(sampler).every((v, i) => Math.abs(v - [250, 247, 238][i]) < 10)).toBe(true); // found across the sheet, not told where
     expect(estimatePaper({ ...sampler, region: { x0: 0, y0: 0, x1: 200, y1: 300 } })).toBeNull(); // a sheet with no white at all
     expect(checkLabel(sampler, paperAware, margin, { radiusPt: 25 }).predicted).toEqual([]);
@@ -113,9 +113,9 @@ describe('colorCheck: neighbourhood rule', () => {
 
   it('keeps the strict and the neighbourhood agreement rates apart in the summary', () => {
     const checks = [
-      checkLabel(sampler, classify, labelAt('Ka', 60, 200), { radiusPt }),
-      checkLabel(sampler, classify, labelAt('Kb', 130, 90), { radiusPt }),
-      checkLabel(sampler, classify, labelAt('Kc', 60, 250), { radiusPt }),
+      checkLabel(sampler, classify, labelAt('Qal', 60, 200), { radiusPt }),
+      checkLabel(sampler, classify, labelAt('Tbr', 130, 90), { radiusPt }),
+      checkLabel(sampler, classify, labelAt('Yxg', 60, 250), { radiusPt }),
     ];
     const s = summarizeChecks(checks, radiusPt);
     expect(s).toMatchObject({ total: 3, agree: 2, directAgree: 1, radiusPt: 60 });
@@ -137,14 +137,14 @@ describe('colorCheck: click identification', () => {
 
   it('names the unit under the point, with alternatives ranked', () => {
     const hit = identifyByColor(sampler, classify, 60, 200);
-    expect(hit.units).toEqual(['Ka']);
-    expect(hit.candidates[0]).toMatchObject({ key: 'Ka' });
+    expect(hit.units).toEqual(['Qal']);
+    expect(hit.candidates[0]).toMatchObject({ key: 'Qal' });
     expect(hit.via).toBe('raster');
   });
 
   it('on a boundary, both units are candidates', () => {
     const hit = identifyByColor(sampler, classify, 200, 150, { patchPt: 4 });
-    expect(new Set(hit.units)).toEqual(new Set(['Ka', 'Kc']));
+    expect(new Set(hit.units)).toEqual(new Set(['Qal', 'Yxg']));
   });
 
   it('says nothing on bare paper', () => {
@@ -173,16 +173,16 @@ describe('applyScanColor (what the browser runs on a scan)', () => {
     const { sampler, legend } = makeMap();
     const result = {
       legend: legend.map((e) => ({ ...e, swatchTextBbox: null })),
-      labels: [labelAt('Ka', 60, 200), labelAt('Kb', 130, 90)].map((l, id) => ({ id, code: l.key, ...l })),
-      plateLabels: [labelAt('Kc', 60, 250)].map((l) => ({ id: 'p0', code: l.key, other: true, ...l })),
+      labels: [labelAt('Qal', 60, 200), labelAt('Tbr', 130, 90)].map((l, id) => ({ id, code: l.key, ...l })),
+      plateLabels: [labelAt('Yxg', 60, 250)].map((l) => ({ id: 'p0', code: l.key, other: true, ...l })),
     };
     let yields = 0;
     const out = await applyScanColor(result, sampler, { yieldEvery: 1, yieldFn: async () => { yields++; } });
-    expect(out.result.labels.map((l) => [l.key, l.color.agrees, l.color.via])).toEqual([['Ka', true, null], ['Kb', true, 'leader']]);
+    expect(out.result.labels.map((l) => [l.key, l.color.agrees, l.color.via])).toEqual([['Qal', true, null], ['Tbr', true, 'leader']]);
     expect(out.result.plateLabels[0].color.agrees).toBe(false);
     expect(out.result.color.primary).toBe('raster');
     expect(out.result.color.raster).toMatchObject({ total: 3, agree: 2, directAgree: 1, radiusPt: 60 });
-    expect(out.identify(60, 200).units).toEqual(['Ka']);
+    expect(out.identify(60, 200).units).toEqual(['Qal']);
     expect(yields).toBeGreaterThan(0);
     expect(result.labels[0].color).toBeUndefined(); // the input is not modified
   });
@@ -191,5 +191,92 @@ describe('applyScanColor (what the browser runs on a scan)', () => {
     const { sampler } = makeMap();
     const result = { legend: [{ key: 'Zz', swatch: { bbox: { x0: 1000, y0: 1000, x1: 1040, y1: 1018 } } }], labels: [], plateLabels: [] };
     expect((await applyScanColor(result, sampler)).result).toBe(result);
+  });
+});
+
+// The screenshot case: a label printed "M€r" (pink unit) read as "MDr" (purple unit). The text sits on pink;
+// a block of purple lies 17 pt away. Twin codes (one letter apart), so pink under the text should win.
+describe('colorCheck: a misread twin code (MDr read, MCr printed)', () => {
+  const W2 = 300, H2 = 200;
+  function twinMap() {
+    const data = new Uint8ClampedArray(W2 * H2 * 4);
+    const rect = (x0, y0, x1, y1, [r, g, b]) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) data.set([r, g, b, 255], (y * W2 + x) * 4); };
+    const PINK = [235, 110, 170], PURPLE = [195, 152, 204], BLUE = [110, 150, 230], PAPER = [250, 247, 238];
+    rect(0, 0, W2, H2, PAPER);
+    rect(0, 0, 160, 200, PINK); // the text sits on a big pink field
+    rect(160, 0, 220, 200, PURPLE); // purple begins 17 pt right of the label's box (label x 118..142)
+    rect(220, 0, 270, 200, BLUE);
+    rect(280, 10, 300, 28, PINK); // swatches
+    rect(280, 40, 300, 58, PURPLE);
+    rect(280, 70, 300, 88, BLUE);
+    const sampler = {
+      scale: 1, region: { x0: 0, y0: 0, x1: W2, y1: H2 },
+      getPixels(b) {
+        const x0 = Math.max(0, Math.floor(b.x0)), y0 = Math.max(0, Math.floor(b.y0)), x1 = Math.min(W2, Math.ceil(b.x1)), y1 = Math.min(H2, Math.ceil(b.y1));
+        const w = x1 - x0, h = y1 - y0, out = new Uint8ClampedArray(w * h * 4);
+        for (let y = 0; y < h; y++) out.set(data.subarray(((y0 + y) * W2 + x0) * 4, ((y0 + y) * W2 + x0 + w) * 4), y * w * 4);
+        return { data: out, width: w, height: h };
+      },
+    };
+    const legend = [
+      { key: 'MCr', swatch: { bbox: { x0: 280, y0: 10, x1: 300, y1: 28 } } },
+      { key: 'MDr', swatch: { bbox: { x0: 280, y0: 40, x1: 300, y1: 58 } } },
+      { key: 'Tbr', swatch: { bbox: { x0: 280, y0: 70, x1: 300, y1: 88 } } },
+    ];
+    return { sampler, legend };
+  }
+  const { sampler, legend } = twinMap();
+  const classify = makeClassifier(buildUnitPalettes(sampler, legend), { paper: estimatePaper(sampler) });
+  const radiusPt = 45; // reaches the purple (starts 18 pt from the text box) but not the blue
+  const label = (key) => ({ key, bbox: { x0: 118, y0: 96, x1: 142, y1: 106 } });
+
+  it('flags the read as a conflict and suggests the twin whose color is under the text', () => {
+    const c = checkLabel(sampler, classify, label('MDr'), { radiusPt });
+    expect(c.verdict).toBe('conflict');
+    expect(c.agrees).toBe(false);
+    expect(c.supports).toBe(true); // purple IS nearby: the old rule would have said "agrees"
+    expect(c.nearestPt).toBeGreaterThan(10);
+    expect(c.suggest).toEqual(['MCr']);
+    expect(c.atText[0]).toMatchObject({ key: 'MCr' });
+    expect(c.atText[0].share).toBeGreaterThan(0.5);
+  });
+
+  it('confirms the right reading of the same label', () => {
+    expect(checkLabel(sampler, classify, label('MCr'), { radiusPt })).toMatchObject({ verdict: 'confirmed', agrees: true, suggest: [] });
+  });
+
+  it('keeps the leader-line rule for a code that is NOT a twin of what is under the text', () => {
+    // Same spot, but the code read is unrelated to MCr: purple 17 pt away is then a leader target.
+    const c = checkLabel(sampler, classify, label('Tbr'), { radiusPt: 100 }); // reaches the blue block, 78 pt from the text
+    expect(c.verdict).toBe('leader');
+    expect(c.agrees).toBe(true);
+    expect(c.suggest).toEqual([]);
+  });
+
+  it('with no color of the read unit anywhere near it is doubtful, not a conflict', () => {
+    const c = checkLabel(sampler, classify, label('Tbr'), { radiusPt: 30 });
+    expect(c.verdict).toBe('doubtful');
+    expect(c.agrees).toBe(false);
+  });
+
+  it('a thin sliver of the read unit\'s color touching the text does not outweigh a big twin field', () => {
+    // Purple sliver 2 pt wide right at the label's edge, pink everywhere else beside the text.
+    const sliver = twinMap();
+    const withSliver = { ...sliver.sampler, getPixels: (b) => { const px = sliver.sampler.getPixels(b); const out = new Uint8ClampedArray(px.data); for (let y = 0; y < px.height; y++) for (let x = 0; x < px.width; x++) { const gx = Math.floor(b.x0) + x, gy = Math.floor(b.y0) + y; if (gx >= 143 && gx < 145 && gy >= 90 && gy <= 112) out.set([195, 152, 204, 255], (y * px.width + x) * 4); } return { ...px, data: out }; } };
+    const c = checkLabel(withSliver, classify, label('MDr'), { radiusPt });
+    expect(c.directAgrees).toBe(true); // the sliver touches the text...
+    expect(c.verdict).toBe('conflict'); // ...but pink outweighs it
+    expect(c.ownShare).toBeLessThan(0.2);
+    expect(checkLabel(withSliver, classify, label('MDr'), { radiusPt, outweighed: 0.01 }).verdict).toBe('confirmed'); // tunable
+  });
+
+  it('counts conflicts in the summary', () => {
+    const checks = [checkLabel(sampler, classify, label('MDr'), { radiusPt }), checkLabel(sampler, classify, label('MCr'), { radiusPt })];
+    expect(summarizeChecks(checks, radiusPt)).toMatchObject({ total: 2, agree: 1, conflicts: 1 });
+  });
+
+  it('twin distance and dominance are tunable', () => {
+    expect(checkLabel(sampler, classify, label('MDr'), { radiusPt, twinDistance: 0 }).verdict).toBe('leader'); // twins switched off
+    expect(checkLabel(sampler, classify, label('MDr'), { radiusPt, minDominant: 1.01 }).verdict).toBe('leader'); // dominance demanded that nothing can meet
   });
 });

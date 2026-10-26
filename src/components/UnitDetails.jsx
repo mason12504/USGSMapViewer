@@ -123,7 +123,7 @@ function FullDescription({ entry, swatchUrl }) {
 
 /** How a label on a scanned map was read: by OCR, or by Claude from a cropped picture. */
 function ReadNote({ read }) {
-  const how = read.by === 'ai' ? 'Read by Claude from a cropped image of the label' : read.by === 'ocr+legend'
+  const how = read.by?.startsWith('ai') ? `Read by Claude from a cropped image of the label${read.by.startsWith('ai-reread') ? ' (read a second time with the full legend list)' : ''}` : read.by === 'ocr+legend'
     ? `Read by OCR as “${read.ocrText}” and matched to the closest legend code` : 'Read by OCR and matched to a legend code';
   const unsure = read.confidence && read.confidence !== 'high' ? ` (${read.confidence} confidence)` : '';
   return (
@@ -142,7 +142,15 @@ function ColorCheck({ label, legendByKey }) {
   const names = (keys) => keys.map((k) => `${legendByKey[k]?.code ?? k}${legendByKey[k] ? ` (${legendByKey[k].name})` : ''}`).join(' or ');
   if (c.method === 'raster') {
     // Scans: is a block of the label's unit color near the label? (see src/lib/scan/colorCheck.js)
-    if (c.directAgrees) {
+    if (c.verdict === 'conflict') {
+      const name = (k) => `${legendByKey[k]?.code ?? k}${legendByKey[k] ? ` (${legendByKey[k].name})` : ''}`;
+      notes.push(
+        <Note key="c" icon={AlertTriangle} tone="amber">
+          The color under the text is {c.suggest.map(name).join(' or ')}'s, a near-twin of this code.
+          {c.nearestPt != null ? ` This unit's own color is ${c.nearestPt} pt away.` : ' This unit\'s own color is not nearby.'} Did the label mean {c.suggest.map((k) => legendByKey[k]?.code ?? k).join(' or ')}?
+        </Note>,
+      );
+    } else if (c.directAgrees) {
       notes.push(<Note key="c" icon={CheckCircle2} tone="green">This unit's legend color is right at the label.</Note>);
     } else if (c.agrees) {
       notes.push(

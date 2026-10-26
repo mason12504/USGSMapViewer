@@ -5,6 +5,8 @@ import { blobImage, findLabelBlobs } from '../../src/lib/scan/blobs.js';
 import { buildLegendEntries } from '../../src/lib/scan/legendText.js';
 import { nearestCode } from '../../src/lib/scan/vocab.js';
 import { scanResultFromResolved } from '../../src/lib/scan/toResult.js';
+import { buildVocabulary, findSuspectCells } from '../../src/lib/scan/reread.js';
+import { cellRect, sheetSize } from '../../src/lib/scan/sheets.js';
 
 // A synthetic scan: cream paper we can paint rectangles on.
 function canvas(width, height) {
@@ -214,5 +216,47 @@ describe('scanResultFromResolved (a scan opened in the app)', () => {
     expect(result.color.primary).toBeNull();
     expect(result.warnings[0].code).toBe('scanned');
     expect(internals).toEqual({ color: null });
+  });
+});
+
+describe('vocabulary and re-read selection', () => {
+  it('never drops a legend code silently: printed glyphs are written in plain letters, the rest is reported', () => {
+    const { vocabulary, dropped } = buildVocabulary(['Qa', 'M€r', 'O€r', 'IPm', 'Qa', null, 'weird code!']);
+    expect(vocabulary).toEqual(['Qa', 'MCr', 'OCr', 'IPm']);
+    expect(dropped).toEqual(['weird code!']);
+  });
+
+  const labels = [
+    { sheet: 1, cell: 1 }, { sheet: 1, cell: 2 }, { sheet: 1, cell: 3 }, { sheet: 1, cell: 4 }, { sheet: 2, cell: 1 },
+  ];
+  const reads = new Map([
+    ['1:1', { text: 'MDr' }], // one edit from MCr, which was missing: suspect
+    ['1:2', { text: 'Kd' }], // unrelated: fine
+    ['1:3', { text: 'MCr' }], // already the once-missing code itself: fine
+    ['1:4', { text: 'Qzz' }], // outside the vocabulary: suspect
+    ['2:1', { text: 'MDr' }],
+  ]);
+  const current = ['MDr', 'MCr', 'Kd', 'OCr'];
+
+  it('re-reads answers one edit from a code that was missing when the sheet was read (legacy: assumed)', () => {
+    const s = findSuspectCells(labels, reads, { current, assumeMissing: ['MCr', 'OCr'] });
+    expect(s.map((x) => `${x.sheet}:${x.cell}`)).toEqual(['1:1', '1:4', '2:1']);
+  });
+
+  it('knows exactly what each sheet was read with when that was saved', () => {
+    const s = findSuspectCells(labels, reads, { current, readWith: (sheet) => (sheet === 1 ? ['MDr', 'Kd', 'OCr'] : current) });
+    expect(s.map((x) => `${x.sheet}:${x.cell}`)).toEqual(['1:1', '1:4']); // sheet 2 had the full list: its MDr is trusted
+  });
+
+  it('can be told which answers to doubt', () => {
+    const s = findSuspectCells(labels, reads, { current, readWith: () => current, codes: ['Kd'] });
+    expect(s.map((x) => `${x.sheet}:${x.cell}`)).toEqual(['1:2', '1:4']);
+  });
+
+  it('cuts cells out of a numbered sheet by geometry', () => {
+    expect(cellRect(1)).toEqual({ x: 0, y: 0, w: 150, h: 70 });
+    expect(cellRect(11)).toEqual({ x: 0, y: 70, w: 150, h: 70 });
+    expect(cellRect(100)).toEqual({ x: 1350, y: 630, w: 150, h: 70 });
+    expect(sheetSize(45)).toEqual({ width: 1500, height: 350 });
   });
 });

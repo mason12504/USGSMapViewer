@@ -72,7 +72,12 @@ console.log(`Labels with any legend color nearby:                    ${pct(withE
 console.log(`Label's unit has a block TOUCHING the text (<= ${TOUCH_PT} pt):     ${pct(sum.directAgree, all.length)}  (${sum.directAgree}/${all.length})`);
 console.log(`Label's unit has a block ANYWHERE in the radius:         ${pct(sum.agree, all.length)}  (${sum.agree}/${all.length})   <- chance level for a random other unit: ${pct(chance.filter((c) => c.supports).length, all.length)}`);
 console.log(`   found only in the neighbourhood (leader-like):        ${all.filter((c) => c.via === 'leader').length}`);
-console.log(`Label's unit has NO block in the radius (suspicious):    ${pct(all.length - sum.agree, all.length)}`);
+console.log(`Label's unit has NO block in the radius (suspicious):    ${pct(all.length - sum.agree - sum.conflicts, all.length)}`);
+const conflictList = checks.filter(({ color }) => color.verdict === 'conflict');
+console.log(`CONFLICTS: read as one unit, text sits on a near-twin's color:  ${conflictList.length}  (${pct(conflictList.length, all.length)})`);
+const pairs2 = {};
+for (const { label, color } of conflictList) { const k = `${label.key} -> ${color.suggest.join('/')}`; pairs2[k] = (pairs2[k] || 0) + 1; }
+console.log('   ' + (Object.entries(pairs2).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, n]) => `${k} x${n}`).join('   ') || 'none'));
 console.log(`Nearest block to the text is the label's unit:           ${pct(checks.filter(({ label, color }) => color.predicted[0] === label.key).length, all.length)}`);
 console.log(`Label's unit among the 3 nearest blocks:                 ${pct(checks.filter(({ label, color }) => color.top3.some((t3) => t3.key === label.key)).length, all.length)}`);
 console.log(`Distinct units with a block in a typical radius:         median ${[...all.map((c) => c.nearbyUnits)].sort((x, y) => x - y)[Math.floor(all.length / 2)]} of ${keys.length}`);
@@ -106,7 +111,7 @@ console.log(`\nSwatch pairs within 8 delta-E (hard to tell apart by color): ${cl
 console.log('  ' + pairs.slice(0, 12).map((p) => `${p.a}~${p.b} ${p.d.toFixed(1)}`).join('   '));
 
 // Disagreements: contact sheet.
-const bad = checks.filter(({ color }) => !color.agrees).slice(0, 24);
+const bad = [...checks.filter(({ color }) => color.verdict === 'conflict'), ...checks.filter(({ color }) => color.verdict === 'doubtful')].slice(0, 24);
 if (bad.length) {
   const CELL = 220, COLS = 6, HALF = 55; // 110 pt square around each label
   const sheet = createCanvas(COLS * CELL, Math.ceil(bad.length / COLS) * (CELL + 18));
@@ -122,7 +127,7 @@ if (bad.length) {
     ctx.strokeRect(ox + CELL / 2 - ((label.bbox.x1 - label.bbox.x0) / 2) * (CELL / (2 * HALF)), oy + 18 + CELL / 2 - ((label.bbox.y1 - label.bbox.y0) / 2) * (CELL / (2 * HALF)), (label.bbox.x1 - label.bbox.x0) * (CELL / (2 * HALF)), (label.bbox.y1 - label.bbox.y0) * (CELL / (2 * HALF)));
     ctx.fillStyle = '#000';
     ctx.font = '13px sans-serif';
-    ctx.fillText(`${label.code}: ${color.predicted.length ? `nearest color is ${color.predicted[0]}` : 'no legend color nearby'}`, ox + 3, oy + 13);
+    ctx.fillText(color.verdict === 'conflict' ? `${label.code}: text sits on ${color.suggest[0]}'s color` : `${label.code}: ${color.predicted.length ? `nearest color is ${color.predicted[0]}` : 'no legend color nearby'}`, ox + 3, oy + 13);
   });
   fs.writeFileSync(path.join(dir, 'color-disagreements.jpg'), sheet.toBuffer('image/jpeg', 85));
 }

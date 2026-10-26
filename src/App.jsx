@@ -69,6 +69,7 @@ export default function App() {
           {colorStats && (
             <Chip title={colorTitle(result.color)}>
               color {result.color.primary === 'raster' ? 'nearby' : 'agrees'} {(colorStats.accuracy * 100).toFixed(0)}%
+              {colorStats.conflicts > 0 && ` · ${colorStats.conflicts} conflicts`}
             </Chip>
           )}
           {api && (
@@ -187,7 +188,7 @@ const CHIP_TONES = {
 function colorTitle(color) {
   if (color.primary === 'raster' && color.raster?.radiusPt) {
     const r = color.raster;
-    return `Scanned map: the label's unit has a block of its legend color within ${r.radiusPt} pt of the label (${(r.accuracy * 100).toFixed(0)}% of labels), or touching the text (${(r.directAccuracy * 100).toFixed(0)}%). A hint for spotting misreads, not proof.`;
+    return `Scanned map: the label's unit has a block of its legend color touching the text (${(r.directAccuracy * 100).toFixed(0)}% of labels) or within ${r.radiusPt} pt of it (${(r.accuracy * 100).toFixed(0)}% in all). ${r.conflicts} label(s) sit on the color of a near-twin code instead (a likely misread). A hint for spotting misreads, not proof.`;
   }
   return `${color.primary} strategy`;
 }

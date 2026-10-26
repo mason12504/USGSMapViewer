@@ -22,10 +22,10 @@ import { createCanvas, loadImage, makeOcr, swatchCodeImage, toPng } from './lib/
 import { findSwatchColumns } from '../src/lib/scan/swatches.js';
 import { blobImage, findLabelBlobs } from '../src/lib/scan/blobs.js';
 import { buildLegendEntries } from '../src/lib/scan/legendText.js';
+import { SHEET_CELLS } from '../src/lib/scan/sheets.js';
 
 const SCAN_VERSION = 1; // bump when the algorithm changes, so old cached results are ignored
 const CONFIDENT = 70; // OCR confidence (0-100) we treat as a real read
-const SHEET_CELLS = { cols: 10, rows: 10, cellW: 150, cellH: 70 };
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);

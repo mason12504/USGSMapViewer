@@ -116,8 +116,10 @@ short codes naming a rock unit. Some crops are place names, elevations, symbols 
 Valid unit codes from this map's legend (a barred "P" is written "IP", a barred "C" or "€" is written "C"):
 ${vocabulary.join(', ')}
 
-List ONLY the cells that contain a unit code. If a crop clearly matches a valid code, return that code
-exactly as listed. If it looks like a unit code that is not in the list, return your best reading.
+List ONLY the cells that contain a unit code. Return a listed code only if EVERY letter of the crop matches
+it. If the letters differ from every listed code (a different letter, or a barred C where a listed code has a
+D), give your literal reading of what is printed: do NOT substitute the nearest listed code. Several listed
+codes are one letter apart on purpose.
 OMIT every cell that is not a unit code: place names, river names, numbers, symbols, contour lines,
 scribbles, or anything unreadable. Most cells are omitted; that is expected.
 

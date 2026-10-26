@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { createWorker } from 'tesseract.js';
 import { ROOT } from './node-pdf.js';
+import { SHEET_CELLS, cellRect, sheetSize } from '../../src/lib/scan/sheets.js';
 
 const LANG_DIR = path.join(ROOT, 'node_modules/@tesseract.js-data/eng/4.0.0_best_int');
 const CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -113,6 +114,34 @@ export function swatchCodeImage(img, sw, { inset = 4, up = 3 } = {}) {
   o.imageSmoothingEnabled = true;
   o.drawImage(src, pad * up, pad * up, w * up, h * up);
   return out.toBuffer('image/png');
+}
+
+/**
+ * A new numbered sheet made of cells cut out of existing label sheets (no PDF re-render).
+ * @param pickCell async (sheetNo) -> loaded sheet image; cells [{sheet, cell}] in the order they get 1..n
+ * @returns {png: Buffer, count}
+ */
+export async function sliceSheet(loadSheet, cells) {
+  const g = SHEET_CELLS;
+  const { width, height } = sheetSize(cells.length, g);
+  const out = createCanvas(width, height);
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, width, height);
+  const cache = new Map();
+  for (const [i, c] of cells.entries()) {
+    if (!cache.has(c.sheet)) cache.set(c.sheet, await loadSheet(c.sheet));
+    const src = cellRect(c.cell, g);
+    const dst = cellRect(i + 1, g);
+    ctx.drawImage(cache.get(c.sheet), src.x, src.y, src.w, src.h, dst.x, dst.y, dst.w, dst.h);
+    // The old cell number is in the corner: cover it and print the new one.
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(dst.x + 1, dst.y + 1, 30, 20);
+    ctx.fillStyle = '#c00';
+    ctx.font = '13px sans-serif';
+    ctx.fillText(String(i + 1), dst.x + 3, dst.y + 14);
+  }
+  return { png: out.toBuffer('image/png'), count: cells.length };
 }
 
 export { createCanvas, loadImage };

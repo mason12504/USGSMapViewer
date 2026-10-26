@@ -9,6 +9,9 @@
 //   ...  --max-calls 20                refuse to start if the plan needs more (default 20)
 //   ...  --server http://127.0.0.1:3001
 //   ...  --merge-only                  rebuild resolved.json from saved answers: no server, no calls
+//   ...  --reread-suspects             ask again ONLY about cells whose saved answer may have been forced onto a
+//                                      neighbouring code because the legend list was incomplete when it was read
+//   ...  --reread MDr,Om               ask again about every cell currently answered with these codes
 //
 // Needs the live API server running (bash scripts/host/run-local.sh, or api-real)
 // and `npm run scan` already done for this map. Calls: 1 for all swatches, then
@@ -19,7 +22,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './lib/node-pdf.js';
 import { nearestCode } from '../src/lib/scan/vocab.js';
-import { canonicalCode, isCanonicalCode } from '../src/lib/scan/glyphs.js';
+import { canonicalCode } from '../src/lib/scan/glyphs.js';
+import { buildVocabulary, findSuspectCells } from '../src/lib/scan/reread.js';
+import { loadImage, sliceSheet } from './lib/scan-tools.js';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
@@ -34,6 +39,8 @@ const server = (opt('--server') || process.env.API_URL || 'http://127.0.0.1:3001
 const only = opt('--only');
 const maxCalls = Number(opt('--max-calls', 20));
 const MERGE_ONLY = flag('--merge-only');
+const REREAD_CODES = opt('--reread') ? opt('--reread').split(',').map((c) => c.trim()).filter(Boolean) : [];
+const REREAD = flag('--reread-suspects') || REREAD_CODES.length > 0;
 const RUN = flag('--run') && !MERGE_ONLY;
 
 if (!fs.existsSync(path.join(dir, 'scan.json'))) {
@@ -45,6 +52,27 @@ if (!scan.swatches.every((s) => s.index) || !fs.existsSync(path.join(dir, 'swatc
   console.error('This scan was made by an older version (no swatch-sheet.png). Re-run:  npm run scan -- <pdf> --force');
   process.exit(1);
 }
+
+let prior = fs.existsSync(path.join(dir, 'ai-results.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'ai-results.json'), 'utf8')) : null;
+if (prior && prior.scanId !== scan.scanId) {
+  // Answers are keyed by sheet and cell number; after a re-scan those numbers mean different crops.
+  console.log('\nNote: ai-results.json belongs to an earlier scan of this map, so its answers are not reused. (Identical API calls are still free from the cache.)');
+  prior = null;
+}
+const aiCodes = new Map((prior?.swatchCodes || []).map((c) => [c.n, c]));
+const labelReads = new Map((prior?.labelReads || []).map((r) => [`${r.sheet}:${r.n}`, r]));
+const sheetsRead = new Set(prior?.sheetsRead || []);
+const sheetVocab = { ...(prior?.sheetVocabulary || {}) }; // sheet -> the legend codes it was read with
+const rereads = [...(prior?.rereads || [])];
+
+// The legend's own codes are the vocabulary for reading labels. Codes as printed ("M€r") are kept for display;
+// the API and all matching use the plain-letter form ("MCr"). Nothing may be dropped silently.
+const finalCode = (s) => aiCodes.get(s.index)?.code ?? (s.confidence >= 70 && /^[A-Za-z0-9]{2,8}$/.test(s.code) ? s.code : null);
+const legendVocabulary = () => {
+  const { vocabulary, dropped } = buildVocabulary(scan.swatches.map(finalCode));
+  if (dropped.length) throw new Error(`These legend codes cannot be sent as vocabulary: ${dropped.join(', ')}. Fix them before reading labels.`);
+  return vocabulary;
+};
 
 // ── What would be sent ──────────────────────────────────────────────────────
 const png = (f) => {
@@ -78,13 +106,42 @@ if (only !== 'swatches') {
 if (MERGE_ONLY) plan.length = 0;
 for (const step of plan) Object.assign(step, { img: png(step.image) });
 
+// Re-read mode: one small sheet per 100 doubtful cells, cut from the sheets already made.
+if (REREAD) {
+  plan.length = 0;
+  if (!aiCodes.size) {
+    console.error('Re-reading needs the swatch codes first: run  npm run scan:ai -- <name> --run --only swatches  (it is cached, so free if already done).');
+    process.exit(1);
+  }
+  const current = legendVocabulary();
+  const reads = new Map(labelReads);
+  const suspects = findSuspectCells(scan.labels, reads, {
+    current,
+    readWith: (sheet) => sheetVocab[sheet] || null,
+    // Older results did not record the vocabulary. They were read before barred glyphs reached it: the units with a glyph in their code.
+    assumeMissing: current.filter((c) => scan.swatches.some((s) => finalCode(s) && canonicalCode(finalCode(s)) === c && finalCode(s) !== c)),
+    codes: REREAD_CODES,
+  }).filter((c) => !((labelReads.get(`${c.sheet}:${c.cell}`)?.rereadWithN ?? 0) >= current.length)); // not already redone with this list
+  console.log(`${suspects.length} cell(s) to read again out of ${scan.labels.filter((l) => l.sheet).length}: ${REREAD_CODES.length ? `answered ${REREAD_CODES.join(' / ')}` : 'saved answers one edit away from a legend code that was missing when they were read'}`);
+  const byAnswer = {};
+  for (const c of suspects) byAnswer[c.was] = (byAnswer[c.was] || 0) + 1;
+  console.log('   saved answers: ' + (Object.entries(byAnswer).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} x${v}`).join('  ') || 'none'));
+  for (let i = 0; i < suspects.length; i += 100) {
+    const cells = suspects.slice(i, i + 100);
+    const { png: buf } = await sliceSheet((n) => loadImage(path.join(dir, `label-sheet-${n}.png`)), cells);
+    const name = `reread-sheet-${i / 100 + 1}.png`;
+    fs.writeFileSync(path.join(dir, name), buf);
+    plan.push({ kind: 'reread', cells: cells.length, map: cells, vocabulary: current, image: name, img: { file: name, base64: buf.toString('base64'), bytes: buf.length, width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) } });
+  }
+}
+
 console.log(`${scan.file}: ${scan.swatches.length} swatches, ${unresolved.length} unresolved labels on ${sheetNos.length} sheet(s)`);
 console.log('\nPlanned calls:');
 let estIn = 0;
 for (const [i, s] of plan.entries()) {
   const t = imageTokens(s.img.width, s.img.height) + (s.kind === 'swatches' ? 40 * s.cells + 300 : 400);
   estIn += t;
-  console.log(`  ${i + 1}. ${s.kind === 'swatches' ? 'read swatch codes ' : `read label sheet ${s.sheet}`}  ${s.cells} cells  image ${s.img.width}x${s.img.height} (${Math.round(s.img.bytes / 1024)} KB)  ~${t.toLocaleString()} input tokens`);
+  console.log(`  ${i + 1}. ${s.kind === 'swatches' ? 'read swatch codes ' : s.kind === 'reread' ? `read again, sheet ${s.image}` : `read label sheet ${s.sheet}`}  ${s.cells} cells  image ${s.img.width}x${s.img.height} (${Math.round(s.img.bytes / 1024)} KB)  ~${t.toLocaleString()} input tokens`);
 }
 console.log(`  total: ${plan.length} call(s), roughly ${estIn.toLocaleString()} input tokens plus roughly ${(plan.length * 900).toLocaleString()} output tokens (estimates, not measurements)`);
 if (plan.length > maxCalls) {
@@ -138,15 +195,6 @@ if (health?.usage && health.usage.remaining < plan.length) {
 // ── Run ─────────────────────────────────────────────────────────────────────
 const before = health?.usage;
 const calls = [];
-let prior = fs.existsSync(path.join(dir, 'ai-results.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'ai-results.json'), 'utf8')) : null;
-if (prior && prior.scanId !== scan.scanId) {
-  // Answers are keyed by sheet and cell number; after a re-scan those numbers mean different crops.
-  console.log('\nNote: ai-results.json belongs to an earlier scan of this map, so its answers are not reused. (Identical API calls are still free from the cache.)');
-  prior = null;
-}
-const aiCodes = new Map((prior?.swatchCodes || []).map((c) => [c.n, c]));
-const labelReads = new Map((prior?.labelReads || []).map((r) => [`${r.sheet}:${r.n}`, r]));
-const sheetsRead = new Set(prior?.sheetsRead || []);
 const note = (kind, r) => {
   calls.push({ kind, cached: r.cached, tokens: r.tokens });
   console.log(`  ✓ ${kind}: ${r.cached ? 'from cache, no charge' : `${r.tokens?.input ?? '?'} in / ${r.tokens?.output ?? '?'} out tokens`}`);
@@ -162,17 +210,27 @@ try {
       for (const c of r.codes) aiCodes.set(c.n, c);
     }
   }
-  // The legend's own codes are the vocabulary for reading labels.
-  // Codes as printed ("M€r") are kept for display; the API and all matching use the plain-letter form ("MCr").
-  const finalCode = (s) => aiCodes.get(s.index)?.code ?? (s.confidence >= 70 && /^[A-Za-z0-9]{2,8}$/.test(s.code) ? s.code : null);
-  const vocabulary = [...new Set(scan.swatches.map(finalCode).map(canonicalCode).filter((c) => c && isCanonicalCode(c)))];
-  if (!vocabulary.length) throw new Error('No legend codes known, so labels cannot be read. Run the swatches step first.');
+  const labelSteps = plan.filter((st) => st.kind === 'labels' || st.kind === 'reread');
+  const vocabulary = labelSteps.length ? legendVocabulary() : [];
+  if (labelSteps.length && !vocabulary.length) throw new Error('No legend codes known, so labels cannot be read. Run the swatches step first.');
   for (const step of plan) {
-    if (step.kind !== 'labels') continue;
-    const r = await post('/api/read-label-sheet', { imageBase64: step.img.base64, mediaType: 'image/png', vocabulary, cells: step.cells });
-    note(`label sheet ${step.sheet}`, r);
-    for (const read of r.reads) labelReads.set(`${step.sheet}:${read.n}`, { sheet: step.sheet, ...read });
-    sheetsRead.add(step.sheet);
+    if (step.kind === 'labels') {
+      const r = await post('/api/read-label-sheet', { imageBase64: step.img.base64, mediaType: 'image/png', vocabulary, cells: step.cells });
+      note(`label sheet ${step.sheet}`, r);
+      for (const read of r.reads) labelReads.set(`${step.sheet}:${read.n}`, { sheet: step.sheet, ...read });
+      sheetsRead.add(step.sheet);
+      sheetVocab[step.sheet] = vocabulary;
+    } else if (step.kind === 'reread') {
+      const r = await post('/api/read-label-sheet', { imageBase64: step.img.base64, mediaType: 'image/png', vocabulary, cells: step.cells });
+      note(`read again (${step.cells} cells)`, r);
+      const byN = new Map(r.reads.map((x) => [x.n, x]));
+      step.map.forEach((orig, i) => {
+        const now = byN.get(i + 1); // a cell the model leaves out is not a code
+        const key = `${orig.sheet}:${orig.cell}`;
+        rereads.push({ sheet: orig.sheet, cell: orig.cell, was: orig.was, now: now?.text ?? null });
+        labelReads.set(key, { sheet: orig.sheet, n: orig.cell, text: now?.text ?? null, confidence: now?.confidence ?? 'high', reread: true, rereadWithN: vocabulary.length });
+      });
+    }
   }
 } catch (err) {
   console.error(`\nStopped: ${err.message}`);
@@ -217,11 +275,12 @@ const finalLabels = scan.labels.map((l) => {
   if (!r) return { ...l, final: null, source: null };
   const text = r.text == null ? null : canonicalCode(r.text);
   if (text == null) return { ...l, ai: null, aiConfidence: r.confidence, aiKind: 'not-a-code', final: null, source: null };
-  if (vocab.has(text)) return { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: 'legend-code', final: text, source: 'ai' };
+  const src = r.reread ? 'ai-reread' : 'ai';
+  if (vocab.has(text)) return { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: 'legend-code', final: text, source: src };
   // Not a legend code as read: one close to exactly one legend code is a misread of it ("OCr" for "O€r").
   const near = nearestCode(text, vocabList);
   return near
-    ? { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: 'legend-code', final: near.code, source: 'ai+legend', corrected: text }
+    ? { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: 'legend-code', final: near.code, source: `${src}+legend`, corrected: text }
     : { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: 'novel', final: null, source: null };
 });
 const readByAi = finalLabels.filter((l) => l.aiKind);
@@ -235,6 +294,8 @@ fs.writeFileSync(path.join(dir, 'ai-results.json'), JSON.stringify({
   swatchCodes: [...aiCodes.values()],
   labelReads: [...labelReads.values()],
   sheetsRead: [...sheetsRead],
+  sheetVocabulary: sheetVocab,
+  rereads,
 }, null, 2));
 fs.writeFileSync(path.join(dir, 'resolved.json'), JSON.stringify({
   file: scan.file,
@@ -269,7 +330,7 @@ if (asked.length) {
 }
 if (readByAi.length) {
   console.log(`Labels: ${readByAi.length} crops read from ${sheetsRead.size} sheet(s): ${count('legend-code')} are legend codes, ${count('novel')} look like codes not in the legend, ${count('not-a-code')} are not codes`);
-  console.log(`   ${finalLabels.filter((l) => l.final).length}/${finalLabels.length} labels on the map now have a legend code (${finalLabels.filter((l) => l.source === 'ocr').length} from OCR, ${corrected.length} from OCR snapped to the legend, ${finalLabels.filter((l) => l.source === 'ai').length} from Claude)`);
+  console.log(`   ${finalLabels.filter((l) => l.final).length}/${finalLabels.length} labels on the map now have a legend code (${finalLabels.filter((l) => l.source === 'ocr').length} from OCR, ${corrected.length} from OCR snapped to the legend, ${finalLabels.filter((l) => l.source?.startsWith('ai')).length} from Claude)`);
   if (corrected.length || rejected.length) {
     const tally = {};
     for (const l of corrected) tally[`${l.corrected}->${l.final}`] = (tally[`${l.corrected}->${l.final}`] || 0) + 1;
@@ -277,6 +338,11 @@ if (readByAi.length) {
   }
   const novel = readByAi.filter((l) => l.aiKind === 'novel').map((l) => l.ai);
   if (novel.length) console.log(`   not in legend (check these): ${[...new Set(novel)].slice(0, 25).join(' ')}`);
+}
+if (rereads.length) {
+  const moved = {};
+  for (const x of rereads) if ((x.was ?? null) !== (x.now ?? null)) moved[`${x.was} -> ${x.now ?? 'not a code'}`] = (moved[`${x.was} -> ${x.now ?? 'not a code'}`] || 0) + 1;
+  console.log(`Read again: ${rereads.length} cell(s); answers that changed: ${Object.entries(moved).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k} x${v}`).join(', ') || 'none'}`);
 }
 const paid = calls.filter((c) => !c.cached);
 console.log(`\nCalls this run: ${calls.length} (${paid.length} paid, ${calls.length - paid.length} from cache); tokens ${paid.reduce((a, c) => a + (c.tokens?.input || 0), 0).toLocaleString()} in / ${paid.reduce((a, c) => a + (c.tokens?.output || 0), 0).toLocaleString()} out`);
