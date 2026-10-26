@@ -51,8 +51,7 @@ test.describe('Scanned map from saved results', () => {
 });
 
 test('a scan with no saved results explains what to run, and makes no API call', async ({ page }) => {
-  // A different file: the Pikeview PDF with its text layer stripped is not available, so use any
-  // PDF the server has no results for by asking for an unknown hash directly.
+  // The app's lookup for a file nobody has scanned: the server says what to run (404), nothing is spent.
   const res = await page.request.get(`/api/scans/${'0'.repeat(64)}`);
   expect(res.status()).toBe(404);
   expect((await res.json()).error).toContain('npm run scan');

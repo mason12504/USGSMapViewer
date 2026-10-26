@@ -29,3 +29,6 @@ npm-debug.log*
 
 # API response cache + daily usage ledger
 .cache/
+
+# Large input PDFs staged for the user in scripts/proposed/ (the scripts there are kept; the maps are not)
+scripts/proposed/*.pdf

@@ -81,32 +81,17 @@ Every paid call is visible and bounded. Mock mode has none of this (it costs not
 
 ## Scanned maps (experimental)
 
-`npm run scan -- <scan.pdf>` makes a first local pass over a PDF that is only a picture: it finds the legend swatch
-columns, reads the legend text and swatch codes with OCR, finds label-like blobs on the map, and writes a
-searchable copy of the PDF plus review images to `.lab/scan/<name>/`. It makes **no API calls**; the pictures it
-prepares (`swatch-strip.png`, `label-sheet-N.png`) are what a later, paid step would send for the parts OCR cannot read.
-Results are cached by file hash in `.cache/scan/`.
+A PDF that is only a picture is read in two steps you run yourself, then opened like any other map:
 
-`npm run scan:ai -- <name>` is the paid follow-up: it sends the numbered swatch sheet (1 call) and the label sheets
-(1 call per ~100 labels) to Claude through the local live API server, so the cache, daily cap and logging above apply.
-It is a **dry run unless you add `--run`**, and prints the planned calls first. Results land in `resolved.json`.
+```bash
+npm run scan -- scan.pdf                 # free, local OCR and shape-finding (~2 min)
+npm run scan:ai -- scan                  # DRY RUN: shows the planned API calls
+npm run scan:ai -- scan --run            # the paid reading (cached, capped, logged)
+```
 
-**Fixing a bad batch of reads cheaply.** A read is only as good as the legend list it was made with: if a code was missing then, Claude answers the nearest listed code ("MDr" for a crop that reads "M€r"). `npm run scan:ai -- <name> --reread-suspects` finds the saved answers that sit one edit from such a code, cuts those cells out of the existing sheets (no PDF re-render, see `reread-sheet-N.png`), and asks again with the complete list: one call for about 50 cells. `--reread MDr,Om` re-asks every cell currently answered with those codes. The legend list is also checked before every label read, and the run stops if a code would be dropped.
-
-**Opening a scan in the app.** Drop the scanned PDF in as usual. The browser hashes the file and asks the server for a
-`resolved.json` with the same hash (`GET /api/scans/<sha256>`, read from `.lab/scan/*/`; `SCANS_DIR` overrides). If one exists the map opens
-with its legend and clickable labels (and works in mock mode: no API is involved). If not, the app tells you which two commands to run.
-The browser itself never starts a paid call for a scan.
-
-**Color on a scan.** Vector PDFs match exact paints; a scan only has pixels, so color is a *hint* (`src/lib/scan/colorCheck.js`).
-For each label the app checks whether a connected block of the label's unit color (measured from its legend swatch) lies within
-`NEIGHBOURHOOD_FACTOR` (1.5) x the swatch's long side of the text, so a code over one formation whose leader line points at a small
-block of another still checks out (`MIN_BLOCK_PT2` sets how small a block counts; `TOUCH_PT` what "at the text" means). Units whose swatches
-look identical form one color group. Clicking the map names the closest legend colors with percentages. Paper is ignored.
-A label can also be flagged as a **conflict**: when a near-twin code's color (one letter apart, e.g. `MDr` / `M€r`) dominates the text and the read unit's own color is absent or only a sliver, the note says "the color under the text is M€r's... did the label mean M€r?". Suggestion only; reads are never rewritten by color. Tune the constants at the top of that file; `npm run scan:color -- <name> [--radius-factor 1.5]` reports how well color agrees with the labels.
-On the Leadville sheet (722 labels): the label's unit has a block in the radius for 87% of labels (a random other unit: 37%), touching the text
-for 52%; the unit with the nearest block is the label's only 27% of the time, because a median of 19 of 73 color groups are in range.
-So color is good at flagging doubtful reads (91% for Claude's high-confidence reads, 45% for low-confidence ones) and weak at identifying a unit alone.
+Then drop the same PDF into the app: whole sheet, clickable labels, legend with full text, a color check that flags
+likely misreads, and click-anywhere unit identification. The browser never starts a paid call for a scan.
+Full guide, costs, tuning and known limits: [docs/SCANNED_MAPS.md](docs/SCANNED_MAPS.md).
 
 ## Dev environment and security model
 

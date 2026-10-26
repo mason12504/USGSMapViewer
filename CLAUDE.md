@@ -42,6 +42,9 @@ npm run scan:color -- <name>                 # how well swatch colors agree with
 Run `npm test` and `npm run lint` before committing. Run `npm run test:e2e` when
 you change UI or anything in `src/lib/`.
 
+Scanned maps (picture-only PDFs): see `docs/SCANNED_MAPS.md` before changing `src/lib/scan/`, `scripts/scan-*.js`
+or the `/api/scans` and `/api/read-*` server routes. Paid steps are dry-run-first; never run them from the sandbox.
+
 ## Layout
 
 ```
