@@ -21,6 +21,14 @@ describe('Leadville scan (real saved results)', () => {
     expect(result.labels.some((l) => l.code === 'M€r' && l.key === 'MCr')).toBe(true);
   });
 
+  it('gives the barred-C units their own labels instead of lumping them under MDr (the re-read fixed ~30)', () => {
+    const n = (key) => [...result.labels, ...result.plateLabels].filter((l) => l.key === key).length;
+    expect(n('MCr')).toBeGreaterThanOrEqual(20); // was 5 before the second read
+    expect(n('OCr')).toBeGreaterThanOrEqual(5);
+    expect(n('MDr')).toBeLessThanOrEqual(15); // was 39
+    expect(result.labels.some((l) => l.read.by === 'ai-reread')).toBe(true);
+  });
+
   it('has the sheet geometry and a hash to be found by', () => {
     expect(resolved.fileSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(result.page).toEqual({ width: 3056, height: 2269 });
