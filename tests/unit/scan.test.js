@@ -121,7 +121,7 @@ describe('nearestCode (snapping OCR reads to the legend)', () => {
     expect(nearestCode('Qe', vocab).code).toBe('Qd');
     expect(nearestCode('Ke', vocab)).toBeNull(); // Kc, Kd and Km are all one letter away
     expect(nearestCode('Kid', vocab)).toBeNull(); // Kfd and Kd are both one edit away
-    expect(nearestCode('Pb', vocab)).toBeNull(); // IPb and Pmb are both close
+    expect(nearestCode('Pb', vocab).code).toBe('IPb'); // the barred P is nearly free; Pmb needs a real edit
   });
 
   it('gives up on anything far from every code', () => {
