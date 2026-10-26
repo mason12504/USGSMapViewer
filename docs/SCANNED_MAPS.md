@@ -107,6 +107,26 @@ reads and a weak identifier on its own. Reads by confidence: Claude high 90%, me
 - **Text-only legend entries** (no swatch) are not map units and are skipped; the correlation chart is not read.
 - Handwritten or very degraded scans are untested.
 
+## Open items and next steps (as of 2026-10-26)
+
+- [ ] **Triage the near-twin conflicts.** About 20 labels in Pennsylvanian and Triassic units (`IPee`/`IPe` x4,
+  `TRPcs`/`TRPs` x3, `IPPm`/`IPm` x2, `IPm`/`IPe` x2, a few singles) sit on a near-twin's color.
+  Look at their crops (`npm run scan:color -- <name>` writes `color-disagreements.jpg`), then test with a cheap targeted
+  re-read: `npm run scan:ai -- USGS_I-999_2-prnt --reread IPee,IPe,IPm` (dry run first; about one call, a cent or two).
+- [ ] **Cut the cost of the next scan.** About half of the candidate cells sent to Claude are "not a code" (place names,
+  contour scribbles) and they are most of the output tokens. A local filter on ink color and shape (place names are
+  blue or brown italics; labels are upright black sans-serif) is the next lever. Color *grouping* of the sheets was
+  measured and rejected (see "Color on a scan").
+- [ ] **Recall.** 717 of ~1,400 candidate blobs became codes; find out how many real labels are missed entirely.
+- [ ] **A second map.** Everything here was tuned on one sheet. Another scan (older type, different legend layout)
+  will show what is general. Handwritten and heavily degraded scans are untested.
+- [ ] **`scripts/host/run-local.sh`** only runs `npm ci` when `node_modules/vite` is missing, so after dependency changes
+  run `npm ci` yourself (a fix would reinstall when `package-lock.json` is newer than `node_modules`; `scripts/host/`
+  is read-only inside the container, so it has to be edited on the PC).
+- [ ] **`.devcontainer/.env.example`** shows as deleted in the maintainer's working tree and was deliberately not
+  committed (the template should stay in the repo). Restore it with `git checkout .devcontainer/.env.example` or
+  `git rm` it on purpose.
+
 ## Troubleshooting
 
 - *"This scan was made by an older version (no swatch-sheet.png)"*: `npm run scan -- <pdf> --force`.

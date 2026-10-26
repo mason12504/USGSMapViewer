@@ -130,5 +130,6 @@ See [CLAUDE.md](CLAUDE.md#layout).
 - [ ] Production image: multi-stage Dockerfile (build with Node → serve `dist/` with nginx + the API)
 - [ ] Dependabot + `npm audit` gate; image scanning (Trivy)
 - [ ] Tailwind 4 migration (clears the remaining dev-only `npm audit` advisory)
-- [ ] More fixtures: an older map, a scanned map
+- [x] A scanned-map fixture (Leadville, saved paid results; see docs/SCANNED_MAPS.md)
+- [ ] More fixtures: an older map; a second, different scan. Open items for scans: docs/SCANNED_MAPS.md
 - [ ] Deploy (and a backend that never exposes the key)
