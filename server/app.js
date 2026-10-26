@@ -41,6 +41,26 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
     res.json({ ok: true, mode: config.mode, model: config.model, usage: live ? usage.snapshot() : null, cache: live ? cache.enabled : null });
   });
 
+  // Results for a scanned map, found by the SHA-256 of the PDF's bytes (the browser computes it).
+  // Free and read-only, so it works in mock mode too. The hash is checked against a strict
+  // pattern and only compared with fields inside known resolved.json files: it never becomes a path.
+  app.get('/api/scans/:sha', (req, res) => {
+    const { sha } = req.params;
+    if (!/^[a-f0-9]{64}$/.test(sha)) return res.status(400).json({ error: 'expected a 64-character SHA-256' });
+    try {
+      for (const d of fs.readdirSync(config.scansDir, { withFileTypes: true })) {
+        if (!d.isDirectory()) continue;
+        const file = path.join(config.scansDir, d.name, 'resolved.json');
+        if (!fs.existsSync(file)) continue;
+        const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (data.fileSha256 === sha) return res.json(data);
+      }
+    } catch {
+      /* no scans folder yet: same as not found */
+    }
+    return res.status(404).json({ error: 'No scan results for this file. Run npm run scan, then npm run scan:ai.' });
+  });
+
   app.get('/api/usage', (_req, res) => {
     res.json({ mode: config.mode, ...usage.snapshot(), cache: { enabled: cache.enabled } });
   });

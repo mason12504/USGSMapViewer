@@ -6,6 +6,8 @@ import { useCallback, useRef, useState } from 'react';
 import { openPdf, OPS, renderRegion, cropToDataUrl } from '../pdf/pdfjs.browser.js';
 import { parseDocument } from '../lib/document.js';
 import { identifyAt } from '../lib/color/index.js';
+import { scanResultFromResolved } from '../lib/scan/toResult.js';
+import { getScanResults, sha256Hex } from '../api.js';
 
 // The whole plate is rendered, not just the map frame, so the long side gets
 // more pixels (~31 MP for a 36x42 in sheet) to keep zoomed-in labels legible.
@@ -21,6 +23,8 @@ export function useMapParser() {
     const progress = (stage) => setState((s) => ({ ...s, stage }));
     try {
       const data = new Uint8Array(await file.arrayBuffer());
+      // Hash BEFORE opening: pdf.js takes ownership of (detaches) the buffer it is given.
+      const fileHash = await sha256Hex(data);
       const doc = await openPdf(data);
 
       // A single map or a whole publication: the plate is found automatically
@@ -28,8 +32,19 @@ export function useMapParser() {
       let parsed = await parseDocument(doc, { OPS, onProgress: progress });
       const page = parsed.page;
       if (parsed.result.warnings.some((w) => w.code === 'no-text-layer')) {
-        const { parseScannedPage } = await import('../fallback/scanned.js');
-        parsed = await parseScannedPage(page, { onProgress: progress });
+        // A scan has no text layer to read. Its results are made ahead of time, off the
+        // browser (npm run scan, then scan:ai) and looked up by the file's hash. Nothing
+        // here ever starts a paid API call.
+        progress('Looking up saved scan results');
+        const saved = await getScanResults(fileHash);
+        if (!saved) {
+          const base = file.name.replace(/\.pdf$/i, '');
+          throw new Error(
+            `"${file.name}" is a scanned map (no text layer) and has no saved scan results yet. ` +
+            `Prepare it first: npm run scan -- <path to ${file.name}>, then npm run scan:ai -- ${base} --run, then open it again.`,
+          );
+        }
+        parsed = scanResultFromResolved(saved);
       }
       const { result } = parsed;
       internals.current = { page, color: parsed.internals.color };

@@ -29,7 +29,7 @@ export default function DescriptionReader({ entry, swatchUrl, onClose }) {
             <div className="flex items-center gap-2">
               <span className="rounded bg-emerald-500/15 px-2 py-0.5 font-mono text-sm font-semibold text-emerald-300">{entry.code}</span>
               <span className="flex items-center gap-1 text-xs text-slate-400">
-                <BookOpen size={12} /> Report page {entry.report.page}
+                <BookOpen size={12} /> {entry.report.page ? `Report page ${entry.report.page}` : 'From the legend'}
               </span>
             </div>
             <h2 className="mt-1 text-lg font-semibold leading-snug">{entry.name}</h2>

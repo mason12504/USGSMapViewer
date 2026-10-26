@@ -38,6 +38,12 @@ export function buildLegendEntries(lines, swatches, { maxBlockLines = 14 } = {})
     if (best) startOf.set(best.l, s);
   }
 
+  // Words seen whole anywhere in the legend, so "quart-|zite" can be told from "north-|facing".
+  const corpus = new Set();
+  for (const l of lines) {
+    for (const w of l.text.toLowerCase().replace(/[a-z]+-\s*$/, '').match(/[a-z]+/g) || []) corpus.add(w);
+  }
+
   const entries = [];
   let cur = null;
   for (const line of ordered) {
@@ -58,7 +64,7 @@ export function buildLegendEntries(lines, swatches, { maxBlockLines = 14 } = {})
   if (cur) entries.push(cur);
 
   return entries.map((e) => {
-    const text = fixKnownTerms(dehyphenateJoin(e.lines.map((l) => l.text)));
+    const text = fixKnownTerms(dehyphenateJoin(e.lines.map((l) => l.text), corpus, { aggressive: true }));
     const parsed = parseEntryText(text);
     return {
       code: null,

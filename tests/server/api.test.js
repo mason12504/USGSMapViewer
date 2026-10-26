@@ -254,17 +254,18 @@ describe('scanned-map endpoints (swatch codes, label sheets)', () => {
   });
 
   it('reads a label sheet using the legend codes as the vocabulary', async () => {
-    const fetchImpl = upstream({ reads: [{ n: 1, text: 'Kd', confidence: 'high' }, { n: 2, text: null, confidence: 'high' }, { n: 3, text: ' IPPm ', confidence: 'weird' }] });
+    const fetchImpl = upstream({ reads: [{ n: 1, text: 'Kd' }, { n: 2, text: null, confidence: 'high' }, { n: 3, text: ' IPPm ', confidence: 'weird' }] });
     const app = createApp(liveConfig(), { fetchImpl, log: quiet });
     const res = await request(app).post('/api/read-label-sheet').send(sheetBody);
     expect(res.body.reads).toEqual([
-      { n: 1, text: 'Kd', confidence: 'high' },
+      { n: 1, text: 'Kd', confidence: 'high' }, // no confidence given means sure
       { n: 2, text: null, confidence: 'high' },
       { n: 3, text: 'IPPm', confidence: 'low' }, // unknown confidence words are demoted
     ]);
     const text = JSON.parse(fetchImpl.mock.calls[0][1].body).messages[0].content.find((c) => c.type === 'text').text;
     expect(text).toContain('Kc, Kd, IPPm');
     expect(text).toContain('3 small crops');
+    expect(text).toContain('List ONLY the cells that contain a unit code');
   });
 
   it('goes through the same cache, cap and log as the legend call', async () => {
@@ -292,6 +293,33 @@ describe('scanned-map endpoints (swatch codes, label sheets)', () => {
     const mock = createApp(loadConfig({ MOCK_ANTHROPIC: '1' }), { log: quiet });
     expect((await request(mock).post('/api/read-swatch-codes').send(swatchBody)).status).toBe(409);
     expect((await request(mock).post('/api/read-label-sheet').send(sheetBody)).status).toBe(409);
+  });
+});
+
+describe('GET /api/scans/:sha (saved results for a scanned map)', () => {
+  const SHA = 'a'.repeat(64);
+  const scansDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mapparser-scans-'));
+  fs.mkdirSync(path.join(scansDir, 'my-map'));
+  fs.writeFileSync(path.join(scansDir, 'my-map', 'resolved.json'), JSON.stringify({ file: 'my-map.pdf', fileSha256: SHA, legend: 'x' }));
+  fs.mkdirSync(path.join(scansDir, 'empty-dir'));
+  const app = createApp(loadConfig({ MOCK_ANTHROPIC: '1', SCANS_DIR: scansDir }), { log: quiet });
+
+  it('returns the scan whose file hash matches, even in mock mode (no API involved)', async () => {
+    const res = await request(app).get(`/api/scans/${SHA}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ file: 'my-map.pdf', fileSha256: SHA });
+  });
+
+  it('404s for an unknown file, and for a missing scans folder', async () => {
+    expect((await request(app).get(`/api/scans/${'b'.repeat(64)}`)).status).toBe(404);
+    const none = createApp(loadConfig({ MOCK_ANTHROPIC: '1', SCANS_DIR: path.join(scansDir, 'nope') }), { log: quiet });
+    expect((await request(none).get(`/api/scans/${SHA}`)).status).toBe(404);
+  });
+
+  it('only accepts a SHA-256, never a path', async () => {
+    expect((await request(app).get('/api/scans/..%2F..%2Fetc%2Fpasswd')).status).toBe(400);
+    expect((await request(app).get('/api/scans/not-a-hash')).status).toBe(400);
+    expect((await request(app).get(`/api/scans/${'A'.repeat(64)}`)).status).toBe(400); // lowercase hex only
   });
 });
 

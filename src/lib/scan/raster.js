@@ -95,3 +95,42 @@ export function meanColor({ data, width }, x0, y0, x1, y1) {
 }
 
 export const colorDistance = (a, b) => Math.sqrt(sq(a[0] - b[0]) + sq(a[1] - b[1]) + sq(a[2] - b[2]));
+
+/**
+ * Ink: pixels clearly darker than their own neighbourhood and dark in absolute
+ * terms. A fixed "darker than N" cutoff loses black type printed over orange or
+ * pink (it scans as dark gray) and, set higher, merges everything on dark fills.
+ * Local contrast keeps both. Brown contour lines stay above `maxAbs` and drop out.
+ *
+ * Neighbourhood mean = separable box blur of the brightest channel (two running
+ * sums), so memory stays near 4 bytes per pixel even for a whole map.
+ */
+export function inkMask({ data, width, height }, { radius = 14, delta = 34, maxAbs = 150 } = {}) {
+  const n = width * height;
+  const v = new Uint8Array(n);
+  for (let p = 0; p < n; p++) v[p] = Math.max(data[p * 4], data[p * 4 + 1], data[p * 4 + 2]);
+
+  const horiz = new Uint8Array(n);
+  const win = 2 * radius + 1;
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    let sum = 0;
+    for (let x = -radius; x <= radius; x++) sum += v[row + Math.min(width - 1, Math.max(0, x))];
+    for (let x = 0; x < width; x++) {
+      horiz[row + x] = (sum / win) | 0;
+      sum += v[row + Math.min(width - 1, x + radius + 1)] - v[row + Math.max(0, x - radius)];
+    }
+  }
+  const mean = new Uint8Array(n);
+  for (let x = 0; x < width; x++) {
+    let sum = 0;
+    for (let y = -radius; y <= radius; y++) sum += horiz[Math.min(height - 1, Math.max(0, y)) * width + x];
+    for (let y = 0; y < height; y++) {
+      mean[y * width + x] = (sum / win) | 0;
+      sum += horiz[Math.min(height - 1, y + radius + 1) * width + x] - horiz[Math.max(0, y - radius) * width + x];
+    }
+  }
+  const mask = new Uint8Array(n);
+  for (let p = 0; p < n; p++) mask[p] = v[p] < maxAbs && v[p] < mean[p] - delta ? 1 : 0;
+  return mask;
+}

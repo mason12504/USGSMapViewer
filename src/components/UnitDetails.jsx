@@ -44,6 +44,7 @@ export default function UnitDetails({ entry, label, identify, swatchUrl, legendB
       {entry.report && <FullDescription key={entry.key} entry={entry} swatchUrl={swatchUrl} />}
 
       {label && <ColorCheck label={label} legendByKey={legendByKey} />}
+      {label?.read && <ReadNote read={label.read} />}
       {identify && (
         <p className="mt-3 flex items-center gap-2 rounded-lg bg-sky-500/10 p-2 text-xs text-sky-200">
           <MousePointerClick size={14} /> Identified from the color/pattern at the point you clicked (experimental).
@@ -77,7 +78,7 @@ function FullDescription({ entry, swatchUrl }) {
         <Chevron size={14} className="shrink-0" />
         <span className="flex-1">{open ? 'Hide full description' : 'Full description'}</span>
         <span className="flex items-center gap-1 text-xs text-slate-400">
-          <BookOpen size={12} /> report p.{entry.report.page}
+          <BookOpen size={12} /> {entry.report.page ? `report p.${entry.report.page}` : 'from the legend'}
         </span>
       </button>
       {open && (
@@ -99,6 +100,18 @@ function FullDescription({ entry, swatchUrl }) {
         </div>
       )}
       {reading && <DescriptionReader entry={entry} swatchUrl={swatchUrl} onClose={() => setReading(false)} />}
+    </div>
+  );
+}
+
+/** How a label on a scanned map was read: by OCR, or by Claude from a cropped picture. */
+function ReadNote({ read }) {
+  const how = read.by === 'ai' ? 'Read by Claude from a cropped image of the label' : read.by === 'ocr+legend'
+    ? `Read by OCR as “${read.ocrText}” and matched to the closest legend code` : 'Read by OCR and matched to a legend code';
+  const unsure = read.confidence && read.confidence !== 'high' ? ` (${read.confidence} confidence)` : '';
+  return (
+    <div className="mt-3" data-testid="read-note">
+      <Note icon={HelpCircle} tone={unsure ? 'amber' : 'slate'}>{how}{unsure}. Scanned maps can contain misreads.</Note>
     </div>
   );
 }

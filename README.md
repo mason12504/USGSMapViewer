@@ -91,6 +91,11 @@ Results are cached by file hash in `.cache/scan/`.
 (1 call per ~100 labels) to Claude through the local live API server, so the cache, daily cap and logging above apply.
 It is a **dry run unless you add `--run`**, and prints the planned calls first. Results land in `resolved.json`.
 
+**Opening a scan in the app.** Drop the scanned PDF in as usual. The browser hashes the file and asks the server for a
+`resolved.json` with the same hash (`GET /api/scans/<sha256>`, read from `.lab/scan/*/`; `SCANS_DIR` overrides). If one exists the map opens
+with its legend and clickable labels (and works in mock mode: no API is involved). If not, the app tells you which two commands to run.
+The browser itself never starts a paid call for a scan.
+
 ## Dev environment and security model
 
 Dev container with Claude Code, based on a stricter container used for

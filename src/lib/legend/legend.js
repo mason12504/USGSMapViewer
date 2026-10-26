@@ -468,7 +468,7 @@ function assignHierarchy(colEntries, freeItems, swatches) {
   });
 }
 
-function titleCaseIfShouting(s) {
+export function titleCaseIfShouting(s) {
   if (s !== s.toUpperCase()) return s;
   return s.toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase()).replace(/\b(And|Or|Of|The)\b/g, (m) => m.toLowerCase());
 }

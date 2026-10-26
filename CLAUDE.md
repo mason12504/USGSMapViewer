@@ -54,17 +54,18 @@ src/lib/                 environment-agnostic parsing pipeline (runs in browser 
   legend/legend.js       legend entries: swatch + bold "Name (Age)—" + description
   labels/mapLabels.js    map frame + labels inside it
   color/                 COLOR COMPARTMENT: see src/lib/color/README.md
-  scan/                  scanned maps: swatch columns, label blobs, legend text → entries (pixels in, no I/O)
+  scan/                  scanned maps: swatch columns, label blobs, legend text → entries (pixels in, no I/O);
+                         toResult.js turns a scan's resolved.json into the app's result (no API in the browser)
 src/pdf/pdfjs.browser.js pdf.js setup for the browser (assets served locally, no CDN)
 src/hooks/useMapParser.js browser orchestration (parse → render → swatch previews)
 src/components/          UI
-src/fallback/scanned.js  OCR + AI path for scanned maps (UNTESTED, no fixture yet)
 server/                  Express API: mock/live modes; key only in live mode
   cache.js, usage.js     live mode only: response cache (.cache/anthropic) + daily call cap/ledger
 scripts/                 CLI tools (parse, color lab) + Node pdf.js helper
 tests/unit, tests/fixtures, tests/server, tests/e2e
 fixtures/pikeview/       real public map + expected-units.json (ground truth)
 fixtures/manitou/        whole report (46 pages) + plate as page 47, with expected-units.json
+fixtures/leadville-scan/ resolved.json of a scanned map: the result of PAID calls, kept so it is never re-bought
 ```
 
 ## Conventions

@@ -10,6 +10,20 @@ export async function getHealth() {
   }
 }
 
+/** Saved results for a scanned PDF (made by `npm run scan` + `npm run scan:ai`), or null. */
+export async function getScanResults(sha256) {
+  const res = await fetch(`/api/scans/${sha256}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Could not look up scan results (HTTP ${res.status}).`);
+  return res.json();
+}
+
+/** SHA-256 of a file's bytes, hex. */
+export async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 /** Ask the server to read a legend image with Claude (or the mock in dev). */
 export async function parseLegendWithAI({ imageBase64, mediaType = 'image/jpeg', candidateCodes = [] }) {
   const res = await fetch('/api/parse-legend', {

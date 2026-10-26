@@ -87,10 +87,12 @@ export default function App() {
             <input type="checkbox" checked={showFrame} onChange={(e) => setShowFrame(e.target.checked)} data-testid="toggle-map-frame" />
             Map frame
           </label>
-          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-slate-800">
-            <input type="checkbox" checked={showColorCheck} onChange={(e) => setShowColorCheck(e.target.checked)} data-testid="toggle-color-check" />
-            <Palette size={14} /> Color check
-          </label>
+          {colorStats && (
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-slate-800">
+              <input type="checkbox" checked={showColorCheck} onChange={(e) => setShowColorCheck(e.target.checked)} data-testid="toggle-color-check" />
+              <Palette size={14} /> Color check
+            </label>
+          )}
           <button type="button" onClick={() => setAiOpen(true)} disabled={!api?.ok} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-40">
             <Bot size={14} /> AI legend check
           </button>

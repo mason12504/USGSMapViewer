@@ -153,7 +153,7 @@ await stage('find and read map labels', async () => {
     blobs.push({
       bbox: { x0: region.x0 + b.x0 / LABEL_SCALE, y0: region.y0 + b.y0 / LABEL_SCALE, x1: region.x0 + (b.x1 + 1) / LABEL_SCALE, y1: region.y0 + (b.y1 + 1) / LABEL_SCALE },
       glyphs: b.glyphs, text: read.text, confidence: read.confidence,
-      crop: toPng(blobImage(r, b, { pad: 6 })),
+      crop: toPng(blobImage(r, b)),
     });
   }
 });
@@ -260,9 +260,13 @@ if (!flag('--no-pdf')) {
 await ocr.close();
 
 // ── 9. Result ───────────────────────────────────────────────────────────────
+// Identifies THIS scan's blobs, so answers saved for an earlier scan are never applied to a different one.
+const scanId = crypto.createHash('sha256').update(JSON.stringify([blobs.map((b) => b.bbox), swatches.map((s) => s.bbox)])).digest('hex').slice(0, 16);
 const result = {
   version: SCAN_VERSION,
   file: path.basename(file),
+  fileSha256: crypto.createHash('sha256').update(bytes).digest('hex'), // what the app looks the scan up by
+  scanId,
   sha256: hash.slice(0, 16),
   page: PAGE,
   apiCalls: 0,

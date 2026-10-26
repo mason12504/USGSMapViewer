@@ -6,7 +6,7 @@
 //   npm run scan:ai -- <name | scan dir> --run              make the calls
 //   ...  --only swatches | labels      one step only
 //   ...  --sheets 1,2                  only these label sheets (default: all)
-//   ...  --max-calls 8                 refuse to start if the plan needs more (default 8)
+//   ...  --max-calls 20                refuse to start if the plan needs more (default 20)
 //   ...  --server http://127.0.0.1:3001
 //   ...  --merge-only                  rebuild resolved.json from saved answers: no server, no calls
 //
@@ -31,7 +31,7 @@ if (!target) {
 const dir = fs.existsSync(target) ? path.resolve(target) : path.join(ROOT, '.lab/scan', target);
 const server = (opt('--server') || process.env.API_URL || 'http://127.0.0.1:3001').replace(/\/$/, '');
 const only = opt('--only');
-const maxCalls = Number(opt('--max-calls', 8));
+const maxCalls = Number(opt('--max-calls', 20));
 const MERGE_ONLY = flag('--merge-only');
 const RUN = flag('--run') && !MERGE_ONLY;
 const VOCAB_RE = /^[A-Za-z0-9]{1,8}$/;
@@ -86,7 +86,7 @@ for (const [i, s] of plan.entries()) {
   estIn += t;
   console.log(`  ${i + 1}. ${s.kind === 'swatches' ? 'read swatch codes ' : `read label sheet ${s.sheet}`}  ${s.cells} cells  image ${s.img.width}x${s.img.height} (${Math.round(s.img.bytes / 1024)} KB)  ~${t.toLocaleString()} input tokens`);
 }
-console.log(`  total: ${plan.length} call(s), roughly ${estIn.toLocaleString()} input tokens plus ~${(plan.length * 1500).toLocaleString()} output tokens (estimates, not measurements)`);
+console.log(`  total: ${plan.length} call(s), roughly ${estIn.toLocaleString()} input tokens plus roughly ${(plan.length * 900).toLocaleString()} output tokens (estimates, not measurements)`);
 if (plan.length > maxCalls) {
   console.error(`\nRefusing: ${plan.length} calls planned, --max-calls is ${maxCalls}.`);
   process.exit(1);
@@ -138,9 +138,15 @@ if (health?.usage && health.usage.remaining < plan.length) {
 // ── Run ─────────────────────────────────────────────────────────────────────
 const before = health?.usage;
 const calls = [];
-const prior = fs.existsSync(path.join(dir, 'ai-results.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'ai-results.json'), 'utf8')) : null;
+let prior = fs.existsSync(path.join(dir, 'ai-results.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'ai-results.json'), 'utf8')) : null;
+if (prior && prior.scanId !== scan.scanId) {
+  // Answers are keyed by sheet and cell number; after a re-scan those numbers mean different crops.
+  console.log('\nNote: ai-results.json belongs to an earlier scan of this map, so its answers are not reused. (Identical API calls are still free from the cache.)');
+  prior = null;
+}
 const aiCodes = new Map((prior?.swatchCodes || []).map((c) => [c.n, c]));
 const labelReads = new Map((prior?.labelReads || []).map((r) => [`${r.sheet}:${r.n}`, r]));
+const sheetsRead = new Set(prior?.sheetsRead || []);
 const note = (kind, r) => {
   calls.push({ kind, cached: r.cached, tokens: r.tokens });
   console.log(`  ✓ ${kind}: ${r.cached ? 'from cache, no charge' : `${r.tokens?.input ?? '?'} in / ${r.tokens?.output ?? '?'} out tokens`}`);
@@ -165,6 +171,7 @@ try {
     const r = await post('/api/read-label-sheet', { imageBase64: step.img.base64, mediaType: 'image/png', vocabulary, cells: step.cells });
     note(`label sheet ${step.sheet}`, r);
     for (const read of r.reads) labelReads.set(`${step.sheet}:${read.n}`, { sheet: step.sheet, ...read });
+    sheetsRead.add(step.sheet);
   }
 } catch (err) {
   console.error(`\nStopped: ${err.message}`);
@@ -204,29 +211,36 @@ const finalLabels = scan.labels.map((l) => {
       : { ...l, final: null, source: null, ocrRejected: l.text };
   }
   const r = l.sheet ? labelReads.get(`${l.sheet}:${l.cell}`) : null;
+  // Claude lists only the cells that hold a code, so on a sheet that was read, a missing cell is "not a code".
+  if (!r && l.sheet && sheetsRead.has(l.sheet)) return { ...l, ai: null, aiKind: 'not-a-code', final: null, source: null };
   if (!r) return { ...l, final: null, source: null };
   const kind = r.text == null ? 'not-a-code' : vocab.has(r.text) ? 'legend-code' : 'novel';
   return { ...l, ai: r.text, aiConfidence: r.confidence, aiKind: kind, final: kind === 'legend-code' ? r.text : null, source: kind === 'legend-code' ? 'ai' : null };
 });
-const sheetsRead = new Set([...labelReads.values()].map((r) => r.sheet));
 const readByAi = finalLabels.filter((l) => l.aiKind);
 const corrected = finalLabels.filter((l) => l.source === 'ocr+legend');
 const rejected = finalLabels.filter((l) => l.ocrRejected);
 const count = (k) => readByAi.filter((l) => l.aiKind === k).length;
 
 fs.writeFileSync(path.join(dir, 'ai-results.json'), JSON.stringify({
+  scanId: scan.scanId,
   runAt: new Date().toISOString(),
   swatchCodes: [...aiCodes.values()],
   labelReads: [...labelReads.values()],
+  sheetsRead: [...sheetsRead],
 }, null, 2));
 fs.writeFileSync(path.join(dir, 'resolved.json'), JSON.stringify({
   file: scan.file,
+  fileSha256: scan.fileSha256,
+  scanId: scan.scanId,
+  page: scan.page,
+  map: scan.map,
   summary: {
     swatches: finalSwatches.length,
     swatchesWithCode: finalSwatches.filter((s) => s.code).length,
     labelsTotal: finalLabels.length,
     labelsResolved: finalLabels.filter((l) => l.final).length,
-    labelSheetsRead: [...sheetsRead],
+    labelSheetsRead: [...sheetsRead].sort((a, b) => a - b),
   },
   swatches: finalSwatches,
   entries: scan.entries.map((e) => {

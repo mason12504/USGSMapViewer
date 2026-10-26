@@ -116,13 +116,14 @@ short codes naming a rock unit. Some crops are place names, elevations, symbols 
 Valid unit codes from this map's legend (a barred "P" is written "IP"):
 ${vocabulary.join(', ')}
 
-For each numbered cell, give the text you read. If it clearly matches a valid code, return that code
+List ONLY the cells that contain a unit code. If a crop clearly matches a valid code, return that code
 exactly as listed. If it looks like a unit code that is not in the list, return your best reading.
-If it is not a unit code (a place name, a number, a symbol, or unreadable), return null.
+OMIT every cell that is not a unit code: place names, river names, numbers, symbols, contour lines,
+scribbles, or anything unreadable. Most cells are omitted; that is expected.
 
 Respond with ONLY a JSON object, no markdown fences:
-{"reads":[{"n":1,"text":"Kd","confidence":"high"},{"n":2,"text":null,"confidence":"high"}]}
-confidence is "high", "medium" or "low".`;
+{"reads":[{"n":1,"text":"Kd"},{"n":7,"text":"Qg","confidence":"low"}]}
+Add "confidence" only when it is "medium" or "low"; leave it out when you are sure.`;
 }
 
 function jsonObject(body) {
@@ -136,7 +137,7 @@ function jsonObject(body) {
 }
 
 const CONF = new Set(['high', 'medium', 'low']);
-const confidence = (c) => (CONF.has(c) ? c : 'low');
+const confidence = (c) => (c === undefined ? 'high' : CONF.has(c) ? c : 'low');
 
 /** [{n, code|null, confidence}] */
 export function parseSwatchCodes(body) {
@@ -146,7 +147,7 @@ export function parseSwatchCodes(body) {
     .map((r) => ({ n: r.n, code: typeof r.code === 'string' && r.code.trim() ? r.code.trim() : null, confidence: confidence(r.confidence) }));
 }
 
-/** [{n, text|null, confidence}] */
+/** [{n, text|null, confidence}]. A missing confidence means "high"; cells the model left out are not returned. */
 export function parseLabelReads(body) {
   const list = Array.isArray(jsonObject(body).reads) ? jsonObject(body).reads : [];
   return list

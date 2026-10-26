@@ -33,9 +33,11 @@ export function loadConfig(env = process.env) {
     priceInPerMTok: num(env.PRICE_IN_PER_MTOK, null),
     priceOutPerMTok: num(env.PRICE_OUT_PER_MTOK, null),
   };
+  // Where `npm run scan:ai` leaves resolved.json per scanned map (read-only here; no API involved).
+  const scansDir = env.SCANS_DIR || path.resolve('.lab/scan');
 
   if (mock) {
-    return { mode: 'mock', port, host, mockFile, model: env.ANTHROPIC_MODEL || DEFAULT_MODEL, recordDir: null, ...spend };
+    return { mode: 'mock', port, host, mockFile, model: env.ANTHROPIC_MODEL || DEFAULT_MODEL, recordDir: null, scansDir, ...spend };
   }
 
   const root = env.PRIVATE_ROOT;
@@ -59,6 +61,7 @@ export function loadConfig(env = process.env) {
     host,
     model: secrets.ANTHROPIC_MODEL || env.ANTHROPIC_MODEL || DEFAULT_MODEL,
     recordDir,
+    scansDir,
     ...spend,
   };
   // Non-enumerable: invisible to JSON.stringify, console.log, and object spread.
