@@ -3,6 +3,7 @@ import { components, darkMask, paperColor } from '../../src/lib/scan/raster.js';
 import { findSwatchColumns } from '../../src/lib/scan/swatches.js';
 import { blobImage, findLabelBlobs } from '../../src/lib/scan/blobs.js';
 import { buildLegendEntries } from '../../src/lib/scan/legendText.js';
+import { nearestCode } from '../../src/lib/scan/vocab.js';
 
 // A synthetic scan: cream paper we can paint rectangles on.
 function canvas(width, height) {
@@ -101,5 +102,30 @@ describe('findLabelBlobs', () => {
     expect(img.width).toBe(25 + 8);
     expect(img.data[(4 * img.width + 4) * 4]).toBe(0); // ink stays black
     expect(img.data[0]).toBe(255); // the coloured fill is gone
+  });
+});
+
+describe('nearestCode (snapping OCR reads to the legend)', () => {
+  const vocab = ['Kc', 'Kd', 'Km', 'Kfd', 'IPee', 'IPm', 'IPb', 'Pmb', 'Qd'];
+
+  it('keeps exact matches', () => {
+    expect(nearestCode('Kd', vocab)).toEqual({ code: 'Kd', distance: 0 });
+  });
+
+  it('restores the barred P that OCR drops', () => {
+    expect(nearestCode('Pee', vocab).code).toBe('IPee');
+    expect(nearestCode('Pm', vocab).code).toBe('IPm');
+  });
+
+  it('fixes a single wrong letter only when exactly one code is that close', () => {
+    expect(nearestCode('Qe', vocab).code).toBe('Qd');
+    expect(nearestCode('Ke', vocab)).toBeNull(); // Kc, Kd and Km are all one letter away
+    expect(nearestCode('Kid', vocab)).toBeNull(); // Kfd and Kd are both one edit away
+    expect(nearestCode('Pb', vocab)).toBeNull(); // IPb and Pmb are both close
+  });
+
+  it('gives up on anything far from every code', () => {
+    expect(nearestCode('Zzzz', vocab)).toBeNull();
+    expect(nearestCode('', vocab)).toBeNull();
   });
 });

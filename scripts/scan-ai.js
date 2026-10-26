@@ -8,6 +8,7 @@
 //   ...  --sheets 1,2                  only these label sheets (default: all)
 //   ...  --max-calls 8                 refuse to start if the plan needs more (default 8)
 //   ...  --server http://127.0.0.1:3001
+//   ...  --merge-only                  rebuild resolved.json from saved answers: no server, no calls
 //
 // Needs the live API server running (bash scripts/host/run-local.sh, or api-real)
 // and `npm run scan` already done for this map. Calls: 1 for all swatches, then
@@ -17,6 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './lib/node-pdf.js';
+import { nearestCode } from '../src/lib/scan/vocab.js';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
@@ -30,7 +32,8 @@ const dir = fs.existsSync(target) ? path.resolve(target) : path.join(ROOT, '.lab
 const server = (opt('--server') || process.env.API_URL || 'http://127.0.0.1:3001').replace(/\/$/, '');
 const only = opt('--only');
 const maxCalls = Number(opt('--max-calls', 8));
-const RUN = flag('--run');
+const MERGE_ONLY = flag('--merge-only');
+const RUN = flag('--run') && !MERGE_ONLY;
 const VOCAB_RE = /^[A-Za-z0-9]{1,8}$/;
 
 if (!fs.existsSync(path.join(dir, 'scan.json'))) {
@@ -72,6 +75,7 @@ if (only !== 'swatches') {
     plan.push({ kind: 'labels', sheet: n, image: `label-sheet-${n}.png`, cells: unresolved.filter((l) => l.sheet === n).length });
   }
 }
+if (MERGE_ONLY) plan.length = 0;
 for (const step of plan) Object.assign(step, { img: png(step.image) });
 
 console.log(`${scan.file}: ${scan.swatches.length} swatches, ${unresolved.length} unresolved labels on ${sheetNos.length} sheet(s)`);
@@ -102,10 +106,12 @@ async function post(p, body) {
 }
 
 let health = null;
-try {
-  health = await get('/api/health');
-} catch {
-  console.log(`\nAPI server not reachable at ${server}.`);
+if (!MERGE_ONLY) {
+  try {
+    health = await get('/api/health');
+  } catch {
+    console.log(`\nAPI server not reachable at ${server}.`);
+  }
 }
 if (health) {
   const u = health.usage;
@@ -113,24 +119,24 @@ if (health) {
   if (u) console.log(`Today: ${u.calls}/${u.cap} paid calls used, ${u.cacheHits} cache hits, ${u.inputTokens.toLocaleString()} tokens in / ${u.outputTokens.toLocaleString()} out`);
 }
 
-if (!RUN) {
+if (!RUN && !MERGE_ONLY) {
   console.log('\nDRY RUN: nothing was sent. Add --run to make these calls (identical calls already cached are free).');
   process.exit(0);
 }
-if (!health) {
+if (!health && !MERGE_ONLY) {
   console.error('Start the live server first (bash scripts/host/run-local.sh) and run again.');
   process.exit(1);
 }
-if (health.mode !== 'live') {
+if (health && health.mode !== 'live') {
   console.error(`The server is in ${health.mode} mode; these steps need live mode. Nothing was sent.`);
   process.exit(1);
 }
-if (health.usage && health.usage.remaining < plan.length) {
+if (health?.usage && health.usage.remaining < plan.length) {
   console.log(`Note: ${health.usage.remaining} paid call(s) left today and ${plan.length} planned; cached ones don't count, so this may still finish.`);
 }
 
 // ── Run ─────────────────────────────────────────────────────────────────────
-const before = health.usage;
+const before = health?.usage;
 const calls = [];
 const prior = fs.existsSync(path.join(dir, 'ai-results.json')) ? JSON.parse(fs.readFileSync(path.join(dir, 'ai-results.json'), 'utf8')) : null;
 const aiCodes = new Map((prior?.swatchCodes || []).map((c) => [c.n, c]));
@@ -140,7 +146,8 @@ const note = (kind, r) => {
   console.log(`  ✓ ${kind}: ${r.cached ? 'from cache, no charge' : `${r.tokens?.input ?? '?'} in / ${r.tokens?.output ?? '?'} out tokens`}`);
 };
 
-console.log('\nRunning…');
+if (MERGE_ONLY) console.log('\nMerge only: rebuilding resolved.json from ai-results.json; no server, no calls.');
+else console.log('\nRunning…');
 try {
   for (const step of plan) {
     if (step.kind === 'swatches') {
@@ -177,8 +184,25 @@ const asked = finalSwatches.filter((s) => aiCodes.has(s.index));
 const agree = asked.filter((s) => s.ocrConfidence >= 70 && s.ocr === s.ai).length;
 const disagree = asked.filter((s) => s.ocrConfidence >= 70 && s.ai && s.ocr !== s.ai);
 
+const vocabList = [...vocab];
+// The same OCR engine misreads the same glyphs the same way on swatches and on the map, so a
+// swatch Claude corrected (OCR "Ke" -> "Kc") teaches us how to fix the map's OCR reads: but only for
+// texts that are not themselves a real code (OCR "Tg" on swatch #26 must not rewrite genuine Tg labels).
+const alias = new Map();
+for (const s of finalSwatches) {
+  if (s.ai && s.ocr && s.ocrConfidence >= 70 && s.ocr !== s.ai && !vocab.has(s.ocr)) {
+    alias.set(s.ocr, alias.has(s.ocr) && alias.get(s.ocr) !== s.ai ? null : s.ai); // two different answers: ambiguous
+  }
+}
 const finalLabels = scan.labels.map((l) => {
-  if (l.inVocabulary) return { ...l, final: l.text, source: 'ocr' };
+  if (l.inVocabulary) {
+    // OCR matched the legend as OCR first read it; check against the final codes.
+    if (vocab.has(l.text)) return { ...l, final: l.text, source: 'ocr' };
+    const near = alias.get(l.text) ? { code: alias.get(l.text) } : nearestCode(l.text, vocabList);
+    return near
+      ? { ...l, final: near.code, source: 'ocr+legend', corrected: l.text }
+      : { ...l, final: null, source: null, ocrRejected: l.text };
+  }
   const r = l.sheet ? labelReads.get(`${l.sheet}:${l.cell}`) : null;
   if (!r) return { ...l, final: null, source: null };
   const kind = r.text == null ? 'not-a-code' : vocab.has(r.text) ? 'legend-code' : 'novel';
@@ -186,6 +210,8 @@ const finalLabels = scan.labels.map((l) => {
 });
 const sheetsRead = new Set([...labelReads.values()].map((r) => r.sheet));
 const readByAi = finalLabels.filter((l) => l.aiKind);
+const corrected = finalLabels.filter((l) => l.source === 'ocr+legend');
+const rejected = finalLabels.filter((l) => l.ocrRejected);
 const count = (k) => readByAi.filter((l) => l.aiKind === k).length;
 
 fs.writeFileSync(path.join(dir, 'ai-results.json'), JSON.stringify({
@@ -222,7 +248,12 @@ if (asked.length) {
 }
 if (readByAi.length) {
   console.log(`Labels: ${readByAi.length} crops read from ${sheetsRead.size} sheet(s): ${count('legend-code')} are legend codes, ${count('novel')} look like codes not in the legend, ${count('not-a-code')} are not codes`);
-  console.log(`   ${finalLabels.filter((l) => l.final).length}/${finalLabels.length} labels on the map now have a legend code (${finalLabels.filter((l) => l.source === 'ocr').length} from OCR, ${finalLabels.filter((l) => l.source === 'ai').length} from Claude)`);
+  console.log(`   ${finalLabels.filter((l) => l.final).length}/${finalLabels.length} labels on the map now have a legend code (${finalLabels.filter((l) => l.source === 'ocr').length} from OCR, ${corrected.length} from OCR snapped to the legend, ${finalLabels.filter((l) => l.source === 'ai').length} from Claude)`);
+  if (corrected.length || rejected.length) {
+    const tally = {};
+    for (const l of corrected) tally[`${l.corrected}->${l.final}`] = (tally[`${l.corrected}->${l.final}`] || 0) + 1;
+    console.log(`   OCR reads fixed against the legend: ${Object.entries(tally).map(([k, v]) => `${k} x${v}`).join(', ') || 'none'}; ${rejected.length} OCR reads dropped as unmatched`);
+  }
   const novel = readByAi.filter((l) => l.aiKind === 'novel').map((l) => l.ai);
   if (novel.length) console.log(`   not in legend (check these): ${[...new Set(novel)].slice(0, 25).join(' ')}`);
 }
