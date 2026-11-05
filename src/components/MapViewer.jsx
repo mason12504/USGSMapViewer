@@ -6,6 +6,10 @@ const MAX_ZOOM = 8;
 const PAD = 160; // screen px of free space around the sheet, so edges can be dragged to the middle
 const DRAG_THRESHOLD = 5; // px a left-button drag must travel before it pans instead of clicking
 
+const DIM_COLOR = 'rgba(15,23,42,0.65)'; // dark navy wash over everything but the focused unit
+const OUTLINE_COLOR = '#f97316'; // orange border on the picked unit's shapes
+const OUTLINE_WIDTH = 2.5; // screen px
+
 function labelStyle(label, { selected, highlighted, showColorCheck }) {
   // Codes outside the map frame (cross-sections, correlation chart).
   if (label.other && !selected && !highlighted) return { stroke: 'rgba(56,189,248,0.8)', fill: 'rgba(56,189,248,0.10)' };
@@ -25,12 +29,15 @@ export default function MapViewer({
   labels,
   selectedLabelId,
   highlightKey,
+  unitFocus,
   showColorCheck,
   marker,
   frame,
   focus,
   onLabelClick,
   onMapClick,
+  onLabelContextMenu,
+  onMapContextMenu,
 }) {
   const scroller = useRef(null);
   const content = useRef(null);
@@ -156,6 +163,16 @@ export default function MapViewer({
     onMapClick?.(p.x, p.y);
   };
 
+  const handleSvgContextMenu = (e) => {
+    e.preventDefault();
+    const svg = e.currentTarget;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    onMapContextMenu?.(p.x, p.y, e.clientX, e.clientY);
+  };
+
   return (
     <div className="relative h-full w-full">
       <div
@@ -186,8 +203,23 @@ export default function MapViewer({
               className={`absolute inset-0 h-full w-full ${grabbing ? 'cursor-grabbing' : 'cursor-crosshair'}`}
               viewBox={`${region.x0} ${region.y0} ${w} ${h}`}
               onClick={handleSvgClick}
+              onContextMenu={handleSvgContextMenu}
               data-testid="map-overlay"
             >
+              {unitFocus && (
+                <g pointerEvents="none" data-testid="unit-focus" data-count={unitFocus.count}>
+                  <defs>
+                    <mask id="unit-focus-mask" maskUnits="userSpaceOnUse" x={region.x0} y={region.y0} width={w} height={h}>
+                      <rect x={region.x0} y={region.y0} width={w} height={h} fill="white" />
+                      {unitFocus.paths.map((p, i) => <path key={i} d={p.d} fillRule={p.fillRule} fill="black" />)}
+                    </mask>
+                  </defs>
+                  <rect x={region.x0} y={region.y0} width={w} height={h} fill={DIM_COLOR} mask="url(#unit-focus-mask)" />
+                  {unitFocus.paths.map((p, i) => (
+                    <path key={i} d={p.d} fillRule={p.fillRule} fill="none" stroke={OUTLINE_COLOR} strokeWidth={OUTLINE_WIDTH} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                  ))}
+                </g>
+              )}
               {labels.map((l) => {
                 const s = labelStyle(l, {
                   selected: l.id === selectedLabelId,
@@ -213,6 +245,11 @@ export default function MapViewer({
                     onClick={(e) => {
                       e.stopPropagation();
                       onLabelClick(l);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onLabelContextMenu?.(l, e.clientX, e.clientY);
                     }}
                   >
                     <title>{l.code}</title>

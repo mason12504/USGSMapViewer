@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { BookOpen, Search } from 'lucide-react';
 import Swatch from './Swatch.jsx';
 
-export default function LegendPanel({ legend, swatches, activeKey, onSelect }) {
+export default function LegendPanel({ legend, swatches, activeKey, onSelect, onContextMenu }) {
   const [q, setQ] = useState('');
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -31,6 +31,7 @@ export default function LegendPanel({ legend, swatches, activeKey, onSelect }) {
               data-testid="legend-item"
               data-code={e.code}
               onClick={() => onSelect(e)}
+              onContextMenu={(ev) => { ev.preventDefault(); onContextMenu?.(e, ev.clientX, ev.clientY); }}
               className={`flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors ${
                 activeKey === e.key ? 'bg-amber-500/15 ring-1 ring-amber-500/50' : 'hover:bg-slate-800'
               }`}

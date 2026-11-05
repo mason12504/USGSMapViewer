@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bot, FileUp, Loader2, Palette } from 'lucide-react';
+import { Bot, EyeOff, FileUp, Loader2, Palette } from 'lucide-react';
 import UploadScreen from './components/UploadScreen.jsx';
 import MapViewer from './components/MapViewer.jsx';
 import UnitDetails from './components/UnitDetails.jsx';
 import LegendPanel from './components/LegendPanel.jsx';
 import AiCompare from './components/AiCompare.jsx';
+import UnitMenu from './components/UnitMenu.jsx';
 import { useMapParser } from './hooks/useMapParser.js';
 import { getHealth } from './api.js';
 
 export default function App() {
-  const { state, load, identify, legendImage, reset } = useMapParser();
+  const { state, load, identify, unitShapes, legendImage, reset } = useMapParser();
   const [selection, setSelection] = useState(null); // {entry, label?, identify?}
   const [highlightKey, setHighlightKey] = useState(null);
   const [marker, setMarker] = useState(null);
@@ -18,6 +19,8 @@ export default function App() {
   const [showOther, setShowOther] = useState(true); // cross-section / chart labels
   const [showFrame, setShowFrame] = useState(false); // outline of the map frame
   const [api, setApi] = useState(null);
+  const [menu, setMenu] = useState(null); // right-click menu: {x, y, entry} in client px
+  const [focusKey, setFocusKey] = useState(null); // unit kept in color while the rest of the map is grayed
 
   // Re-read after each load and each AI check, so the call counter stays current.
   useEffect(() => {
@@ -34,6 +37,23 @@ export default function App() {
     setMarker(null);
     setHighlightKey(null);
   };
+
+  // "Hide other units": gray out the map and outline every polygon of that unit.
+  const unitFocus = useMemo(
+    () => (focusKey && state.result ? { key: focusKey, ...unitShapes(state.result.legend, focusKey) } : null),
+    [focusKey, state.result, unitShapes],
+  );
+
+  // "Hide other units" lasts until the next click away from that unit; clicks on the unit itself keep it.
+  const leaveFocusUnless = (unitKeys) => setFocusKey((k) => (k && !unitKeys.includes(k) ? null : k));
+
+  // Escape brings the other units back.
+  useEffect(() => {
+    if (!focusKey) return undefined;
+    const onKey = (e) => e.key === 'Escape' && setFocusKey(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focusKey]);
 
   if (state.status === 'idle' || state.status === 'error') {
     return <UploadScreen onFile={load} error={state.error} />;
@@ -88,6 +108,12 @@ export default function App() {
             <input type="checkbox" checked={showFrame} onChange={(e) => setShowFrame(e.target.checked)} data-testid="toggle-map-frame" />
             Map frame
           </label>
+          {unitFocus && (
+            <button type="button" onClick={() => setFocusKey(null)} data-testid="show-all-chip" title="Show all units again (Esc)" className="flex items-center gap-1.5 rounded-full bg-orange-500/15 px-2 py-0.5 text-xs text-orange-300 hover:bg-orange-500/25">
+              <EyeOff size={12} /> Only {legendByKey[unitFocus.key]?.code} · show all
+              {!unitFocus.count && <span data-testid="no-shapes" className="text-slate-400" title="The legend swatch's fill was not found among the map's filled shapes"> (no map shapes found)</span>}
+            </button>
+          )}
           {colorStats && (
             <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-slate-800">
               <input type="checkbox" checked={showColorCheck} onChange={(e) => setShowColorCheck(e.target.checked)} data-testid="toggle-color-check" />
@@ -101,6 +127,7 @@ export default function App() {
             type="button"
             onClick={() => {
               clearSelection();
+              setFocusKey(null);
               reset();
             }}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1 text-sm font-medium hover:bg-emerald-500"
@@ -125,17 +152,33 @@ export default function App() {
             focus={mapBox}
             selectedLabelId={selection?.label?.id}
             highlightKey={highlightKey}
+            unitFocus={unitFocus?.count ? unitFocus : null}
             showColorCheck={showColorCheck}
             marker={marker}
+            onLabelContextMenu={(label, cx, cy) => {
+              const entry = legendByKey[label.key];
+              if (entry) setMenu({ x: cx, y: cy, entry });
+            }}
+            onMapContextMenu={(x, y, cx, cy) => {
+              if (!inMapFrame(x, y) && result.source !== 'scan') return;
+              const hit = identify(x, y);
+              const entry = hit?.units.length ? legendByKey[hit.units[0]] : null;
+              if (entry) setMenu({ x: cx, y: cy, entry });
+            }}
             onLabelClick={(label) => {
+              leaveFocusUnless([label.key]);
               setMarker(null);
               setHighlightKey(null);
               setSelection({ entry: legendByKey[label.key], label });
             }}
             onMapClick={(x, y) => {
               // Vector color identification only knows the map frame; scans identify by pixel color anywhere.
-              if (!inMapFrame(x, y) && result.source !== 'scan') return clearSelection();
+              if (!inMapFrame(x, y) && result.source !== 'scan') {
+                leaveFocusUnless([]);
+                return clearSelection();
+              }
               const hit = identify(x, y);
+              leaveFocusUnless(hit?.units || []);
               setMarker({ x, y });
               setHighlightKey(null);
               if (!hit) return setSelection(null);
@@ -163,7 +206,9 @@ export default function App() {
             legend={result.legend}
             swatches={swatches}
             activeKey={highlightKey}
+            onContextMenu={(entry, cx, cy) => setMenu({ x: cx, y: cy, entry })}
             onSelect={(e) => {
+              leaveFocusUnless([e.key]);
               setMarker(null);
               setHighlightKey((k) => (k === e.key ? null : e.key));
               setSelection({ entry: e });
@@ -171,6 +216,18 @@ export default function App() {
           />
         </aside>
       </main>
+
+      {menu && (
+        <UnitMenu
+          x={menu.x}
+          y={menu.y}
+          entry={menu.entry}
+          hiding={!!focusKey}
+          onHideOthers={(e) => setFocusKey(e.key)}
+          onShowAll={() => setFocusKey(null)}
+          onClose={() => setMenu(null)}
+        />
+      )}
 
       {aiOpen && <AiCompare legend={result.legend} getLegendImage={legendImage} onClose={() => setAiOpen(false)} />}
     </div>

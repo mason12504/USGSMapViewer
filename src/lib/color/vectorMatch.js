@@ -26,7 +26,7 @@ export function buildFillIndex(fills, region) {
     }
   }
   for (const list of grid.values()) list.sort((a, b) => b.order - a.order);
-  return { grid, region, count: inRegion.length };
+  return { grid, region, count: inRegion.length, fills: inRegion };
 }
 
 /** All fills containing (x, y), topmost first. */
@@ -104,8 +104,7 @@ export function followLeader(lab, strokes, index, lookup) {
   return best;
 }
 
-export function matchLabelsVector(labels, legend, index, strokes = []) {
-  const lookup = legendPaintLookup(legend);
+export function matchLabelsVector(labels, legend, index, strokes = [], lookup = legendPaintLookup(legend)) {
   const perLabel = labels.map((lab) => {
     const b = lab.codeBbox || lab.bbox;
     const h = b.y1 - b.y0;

@@ -10,10 +10,12 @@
 // See src/lib/color/README.md.
 
 import { buildFillIndex, matchLabelsVector, unitAtPoint, legendPaintLookup } from './vectorMatch.js';
+import { addColorAliases } from './highlight.js';
 import { matchLabelsRaster } from './rasterMatch.js';
 
 export { describePaint, paintColors, paintKey } from './paint.js';
 export { buildFillIndex, unitAtPoint, legendPaintLookup } from './vectorMatch.js';
+export { shapesForUnit, shapesToPaths, addColorAliases } from './highlight.js';
 export { labelPalette, rankUnits, swatchPalette } from './rasterMatch.js';
 
 /**
@@ -30,9 +32,9 @@ export function analyzeColors({ labels, legend, fills, strokes = [], mapRegion, 
   const result = { primary: null, vector: null, raster: null };
 
   const index = buildFillIndex(fills || [], mapRegion);
-  const lookup = legendPaintLookup(legend);
+  const lookup = addColorAliases(legendPaintLookup(legend), legend, index.fills);
   if (index.count > 0 && lookup.size > 0) {
-    result.vector = matchLabelsVector(labels, legend, index, strokes);
+    result.vector = matchLabelsVector(labels, legend, index, strokes, lookup);
     // Only trust the vector strategy if a decent share of labels found a paint.
     if (result.vector.summary.total && result.vector.summary.unknown / result.vector.summary.total < 0.5) {
       result.primary = 'vector';

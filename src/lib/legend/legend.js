@@ -15,10 +15,10 @@
 //   3. The entry's text block runs down its column until the next entry,
 //      a heading, or a big vertical gap.
 
-import { bboxArea, bboxCenter, bboxContainsPoint, ringsArea } from '../geometry.js';
+import { bboxArea, bboxCenter, bboxContainsPoint, pathContainsPoint, ringsArea } from '../geometry.js';
 import { groupLines } from '../pdf/textItems.js';
 import { ageForCode, isUnitCodeShape, normalizeCode } from '../units/unitCodes.js';
-import { paintKey } from '../color/paint.js';
+import { isBackgroundPaint, paintKey } from '../color/paint.js';
 
 // Legend text lines stop at a horizontal gap wider than this many font sizes:
 // beyond it is a different column (map symbols, correlation chart).
@@ -100,7 +100,7 @@ export function findSwatchLabels(rawItems, swatches) {
  * code's cell as a swatch with no paint. The bold-text-to-the-right test in
  * findLegendEntries then decides whether it is really an entry.
  */
-export function findTextOnlySwatchLabels(items, swatches, found) {
+export function findTextOnlySwatchLabels(items, swatches, found, fills = []) {
   const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
   const cols = [];
   for (const sl of found) {
@@ -124,10 +124,28 @@ export function findTextOnlySwatchLabels(items, swatches, found) {
       if (swatches.some((s) => bboxContainsPoint(s.bbox, cx, cy))) continue;
       taken.add(it);
       const bbox = { x0: col.x0, x1: col.x0 + w, y0: cy - h / 2, y1: cy + h / 2 };
-      out.push({ item: it, swatch: { bbox, paint: null, order: -1, textOnly: true } });
+      out.push({ item: it, swatch: { bbox, paint: paintUnderCode(it, bbox, fills), order: -1, textOnly: true } });
     }
   }
   return out;
+}
+
+/**
+ * Swatches split by a diagonal (a colored trapezoid beside a white triangle holding a dike symbol) are not
+ * rectangular, so they are not found as swatches. The unit's color is what is printed under its code:
+ * the topmost small fill there. White (or nothing) means a plain dike/vein swatch with no color to use.
+ */
+export function paintUnderCode(item, swatchBbox, fills) {
+  const [cx, cy] = bboxCenter(item);
+  let top = null;
+  for (const f of fills) {
+    const b = f.bbox;
+    // Only fills inside the swatch cell: never the paper or a big background shape.
+    if (b.x0 < swatchBbox.x0 - 2 || b.x1 > swatchBbox.x1 + 2 || b.y0 < swatchBbox.y0 - 2 || b.y1 > swatchBbox.y1 + 2) continue;
+    if (!bboxContainsPoint(b, cx, cy) || !pathContainsPoint(f.rings, cx, cy, f.fillRule)) continue;
+    if (!top || f.order > top.order) top = f;
+  }
+  return top && !isBackgroundPaint(top.paint) ? top.paint : null;
 }
 
 const isHeading = (text) =>
@@ -251,7 +269,7 @@ export function parseEntryText(fullText, header = '') {
 export function findLegendEntries(items, fills) {
   const swatches = findSwatchShapes(fills);
   const swatchLabels = findSwatchLabels(items, swatches);
-  const textOnly = findTextOnlySwatchLabels(items, swatches, swatchLabels);
+  const textOnly = findTextOnlySwatchLabels(items, swatches, swatchLabels, fills);
   swatchLabels.push(...textOnly);
   const allSwatches = [...swatches, ...textOnly.map((t) => t.swatch)];
   // A merged code ("T"+"RPl") must also take its original runs out of the free text.

@@ -5,7 +5,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { openPdf, OPS, renderRegion, cropToDataUrl, makeCanvasSampler } from '../pdf/pdfjs.browser.js';
 import { parseDocument } from '../lib/document.js';
-import { identifyAt } from '../lib/color/index.js';
+import { identifyAt, shapesForUnit, shapesToPaths } from '../lib/color/index.js';
 import { scanResultFromResolved } from '../lib/scan/toResult.js';
 import { applyScanColor } from '../lib/scan/applyColor.js';
 import { getScanResults, sha256Hex } from '../api.js';
@@ -105,6 +105,12 @@ export function useMapParser() {
   /** Experimental: which unit is at page point (x, y)? Exact paint for vector maps; swatch colors for scans. */
   const identify = useCallback((x, y) => internals.current?.scanIdentify?.(x, y) ?? identifyAt(internals.current?.color, x, y), []);
 
+  /** Every map polygon painted as unit `key`: {paths: SVG path data, count, method}. Vector maps only. */
+  const unitShapes = useCallback((legend, key) => {
+    const { shapes, method } = shapesForUnit(internals.current?.color, legend, key);
+    return { paths: shapesToPaths(shapes), count: shapes.length, method };
+  }, []);
+
   /** Render the legend text area for the AI comparison. */
   const legendImage = useCallback(async () => {
     const it = internals.current;
@@ -125,7 +131,7 @@ export function useMapParser() {
     setState({ status: 'idle' });
   }, [state]);
 
-  return { state, load, identify, legendImage, reset };
+  return { state, load, identify, unitShapes, legendImage, reset };
 }
 
 function canvasToObjectUrl(canvas) {

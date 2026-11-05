@@ -43,6 +43,55 @@ test.describe('Manitou Springs publication', () => {
     await expect(page.getByTestId('full-description-modal')).toHaveCount(0);
   });
 
+  test('right-click a unit > Hide other units grays out the rest and outlines its shapes in orange', async ({ page }) => {
+    const focus = page.getByTestId('unit-focus');
+    const hideOthers = async (code, search) => {
+      await page.getByTestId('legend-search').fill(search);
+      await page.locator(`[data-testid="legend-item"][data-code="${code}"]`).click({ button: 'right' });
+      await page.getByTestId('hide-other-units').click();
+    };
+
+    // A normal click never grays anything out.
+    await page.locator('[data-testid="legend-item"][data-code="Ypp"]').click();
+    await page.locator('[data-testid="map-label"][data-code="Ypp"]').first().click();
+    await expect(focus).toHaveCount(0);
+
+    // Right-click on a label offers the same menu.
+    await page.locator('[data-testid="map-label"][data-code="Ypp"]').first().click({ button: 'right' });
+    await page.getByTestId('hide-other-units').click();
+    await expect(focus).toHaveCount(1);
+    expect(Number(await focus.getAttribute('data-count'))).toBeGreaterThan(10);
+    await expect(focus.locator('path[stroke="#f97316"]').first()).toBeAttached();
+
+    // Clicking the unit's own label keeps it; clicking another unit's label ends it.
+    await page.locator('[data-testid="map-label"][data-code="Ypp"]').first().click();
+    await expect(focus).toHaveCount(1);
+    await page.locator('[data-testid="map-label"][data-code="Ywp"]').first().click();
+    await expect(focus).toHaveCount(0);
+    await page.locator('[data-testid="map-label"][data-code="Ypp"]').first().click({ button: 'right' });
+    await page.getByTestId('hide-other-units').click();
+    await expect(focus).toHaveCount(1);
+
+    // Esc brings everything back.
+    await page.keyboard.press('Escape');
+    await expect(focus).toHaveCount(0);
+
+    // A pattern tiled at a different scale than its swatch is still found (by colors).
+    await hideOthers('Qcs', 'colluvium');
+    await expect(focus).toHaveCount(1);
+    await page.getByTestId('map-scroller').screenshot({ path: '.lab/unit-focus-Qcs.png' });
+
+    // Diagonal-split swatches (dikes + a colored trapezoid) take the color under the code; plain white ones have none.
+    await hideOthers('Ymr', 'Mount Rosa');
+    await expect(focus).toHaveCount(1);
+    await hideOthers('Ym', 'Mafic dikes');
+    await expect(page.getByTestId('no-shapes')).toBeVisible();
+
+    // The header chip also shows everything again.
+    await page.getByTestId('show-all-chip').click();
+    await expect(focus).toHaveCount(0);
+  });
+
   test('legend search finds a unit that has a full description', async ({ page }) => {
     await page.getByTestId('legend-search').fill('lykins');
     await page.locator('[data-testid="legend-item"][data-code="TRPl"]').click();
