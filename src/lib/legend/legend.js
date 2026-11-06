@@ -40,11 +40,13 @@ export function findSwatchShapes(fills, limits = SWATCH_LIMITS) {
 
 /**
  * A code printed INSIDE a legend swatch. Normal unit codes, plus short
- * all-lowercase ones ("af" artificial fill, "mw" mine waste): those are only
+ * all-lowercase ones ("af" artificial fill, "mw" mine waste) and ones with a capital
+ * inside ("YgP", "YgPcp": a granite named by its pluton): those are only
  * trustworthy because of where they sit, so they're not accepted elsewhere.
  */
 export const isSwatchCode = (str) =>
-  isUnitCodeShape(str) || /^[a-z]{2,3}$/.test(str) || /^[A-Z]{2,3}[a-z]{1,4}[0-9]?$/.test(str);
+  isUnitCodeShape(str) || /^[a-z]{2,3}$/.test(str) || /^[A-Z]{2,3}[a-z]{1,4}[0-9]?$/.test(str) ||
+  /^[A-Z][a-z]{1,2}[A-Z][a-z]{0,3}[0-9]?$/.test(str);
 
 /**
  * Codes like "TRPl" are sometimes typeset as two text runs ("T" + "RPl").
@@ -75,7 +77,8 @@ export function findSwatchLabels(rawItems, swatches) {
   const out = [];
   for (const it of mergeSwatchParts(rawItems, swatches)) {
     if (Math.abs(it.angle) > 0.05) continue;
-    if (!isSwatchCode(it.str)) continue;
+    // "MC" (M + barred C, two ages joined) has no lowercase, so only a symbol-font run may be such a code.
+    if (!isSwatchCode(it.str) && !(it.symbol && /^[A-Z]{2}$/.test(it.str) && ageForCode(it.str))) continue;
     const base = it.parts ? it.parts[0] : it; // center of the code, not the subscript
     const [cx, cy] = bboxCenter(base);
     let best = null;
@@ -215,6 +218,20 @@ export function fixKnownTerms(text) {
     return joined[0] === joined[0].toUpperCase() ? hit : hit.toLowerCase();
   });
 }
+
+// A column of this many bare-name swatch entries (no age, no dash, no description) is a legend column.
+const BARE_COLUMN_MIN = 6;
+const AGE_WORDS = new Set([
+  ...GEO_TERMS.keys(),
+  'early', 'middle', 'late', 'upper', 'lower', 'and', 'or', 'to', 'the', 'of', 'age', 'epoch', 'period', 'era',
+  'cisuralian', 'guadalupian', 'lopingian', 'ediacaran', 'ordovician', 'unknown', 'uncertain',
+]);
+/** True when a legend "name" is only geologic time words ("Late Cretaceous"): an age label, not a unit. */
+export function isAgeOnlyName(name) {
+  const words = String(name || '').toLowerCase().match(/[a-z]+/g) || [];
+  return words.length > 0 && words.every((w) => AGE_WORDS.has(w));
+}
+
 
 /**
  * Split "Sheetwash deposits (Holocene and late Pleistocene)—Silty sand..." into
@@ -387,11 +404,16 @@ export function findLegendEntries(items, fills) {
         source: 'text',
       });
     });
-    // Bare-name entries ("upper unit", a sub-unit with no age) are only believed
-    // in a swatch column that already holds well-formed entries; a lone one is
-    // more likely a correlation-chart box beside an age label.
+    // Bare-name entries ("upper unit", a sub-unit with no age) are believed in a swatch column that already
+    // holds well-formed entries. A lone one is more likely a correlation-chart box beside an age label
+    // (always dropped when the "name" is only an age: "Paleocene"). A whole column of bare names with no
+    // ages (a legend that puts the age in section headings) is believed too: a real run of unit names.
     const strongCount = colEntries.filter((e) => !e._meta.weak).length;
-    if (strongCount < 3) colEntries.splice(0, colEntries.length, ...colEntries.filter((e) => !e._meta.weak));
+    const bare = colEntries.filter((e) => e._meta.weak && !isAgeOnlyName(e.name));
+    const keep = strongCount >= 3 ? (e) => !e._meta.weak || !isAgeOnlyName(e.name)
+      : bare.length >= BARE_COLUMN_MIN ? (e) => !e._meta.weak || !isAgeOnlyName(e.name)
+      : (e) => !e._meta.weak;
+    colEntries.splice(0, colEntries.length, ...colEntries.filter(keep));
     assignHierarchy(colEntries, freeItems, allSwatches);
     for (const e of colEntries) {
       delete e._meta;

@@ -14,6 +14,21 @@ import { applyMatrix, bboxOfPoints, multiply } from '../geometry.js';
 const BOLD_RE = /bold|black|heavy|semibold|demi/i;
 const ITALIC_RE = /italic|oblique/i;
 
+// The FGDC geologic-age symbol font prints the age symbols that plain letters cannot: the barred P of
+// Pennsylvanian (written "IP" in unit codes: "PIPf"), the Triassic TR ligature, and the barred C of Cambrian.
+// Plates carry them as control characters, pamphlets as printable look-alikes. Either way they become plain
+// letters so a plate's "P\x1ff" and a pamphlet's "P*f" are both "PIPf", as in a PDF that spells it out.
+const GEO_AGE_FONT = /geoage/i;
+const GEO_AGE_GLYPHS = { '\x1d': 'C', '\x1e': 'TR', '\x1f': 'IP', _: 'C', '^': 'TR', '*': 'IP' };
+
+/** Plain-letter text of a run: symbol-font glyphs spelled out, everything else untouched. */
+export function plainSymbolText(str, fontName) {
+  if (!GEO_AGE_FONT.test(fontName || '')) return str;
+  let out = '';
+  for (const ch of str) out += GEO_AGE_GLYPHS[ch] ?? ch;
+  return out;
+}
+
 export async function extractTextItems(page, viewport) {
   const content = await page.getTextContent({ includeMarkedContent: false });
   const fontInfo = new Map();
@@ -60,8 +75,10 @@ export async function extractTextItems(page, viewport) {
     const origin = applyMatrix(m, 0, 0);
     const angle = Math.atan2(m[1], m[0]);
 
+    const str = plainSymbolText(raw.str, font.name);
     items.push({
-      str: raw.str,
+      str,
+      symbol: str !== raw.str, // age-symbol glyphs were spelled out as letters
       x0: bb.x0,
       y0: bb.y0,
       x1: bb.x1,

@@ -12,6 +12,10 @@
 // a subscript: "Pl" + "u"). Text is read column by column, page by page, so an
 // entry can run across a column or page break.
 //
+// Some reports (USGS Scientific Investigations pamphlets) set the same thing in ONE wide column: unit code in the
+// left gutter, bold "Name (Age)" with the dash in roman type, description hanging below. A page whose text lines
+// run across the middle is read as one column; otherwise as two.
+//
 // Input is plain positioned text items (see pdf/textItems.js), so this module
 // runs in the browser and in Node.
 
@@ -23,7 +27,11 @@ import { normalizeCode } from '../units/unitCodes.js';
 export const MAX_DESCRIPTION_CHARS = 10_000;
 
 const DASH = /[—–]/;
+/** A page is one wide column when more than this share of its text runs cross the page's middle. */
+const SINGLE_COLUMN_SHARE = 0.2;
 const isShouting = (t) => t.length >= 8 && t === t.toUpperCase() && /[A-Z]{4,}/.test(t);
+/** Gap (page units) between a gutter code and the heading it belongs to; some typesetting nearly touches. */
+const GUTTER_GAP = 3;
 const GUTTER_CODE = /^[A-Za-z]{2,7}[0-9]?$/;
 
 const mode = (xs) => {
@@ -43,6 +51,37 @@ function boldPrefix(line) {
   return { items: bold, rest: line.items.slice(i), text };
 }
 
+/**
+ * A line that starts with bold text, and whether that bold text is a "Name (Age)—" heading: the dash is
+ * either inside the bold run (Manitou) or the first thing after it in roman type (Bailey, "Name (Age)" + "—Mapped…").
+ */
+function boldHeading(line) {
+  const bp = boldPrefix(line);
+  const rest = lineText(line.items.slice(bp.items.length));
+  const dashAfter = !DASH.test(bp.text) && /^\s*[—–]/.test(rest);
+  return { bp, rest, dashAfter, hasDash: DASH.test(bp.text) || dashAfter };
+}
+
+/** The text after a heading's dash on its own line. */
+function afterHeadingDash({ bp, rest, dashAfter }) {
+  if (dashAfter) return rest.replace(/^\s*[—–]\s*/, '');
+  const tail = bp.text.slice(bp.text.search(DASH) + 1).trim();
+  return [tail, rest].filter(Boolean).join(' ');
+}
+
+/**
+ * A line split into the unit code that starts it and the rest, when short non-bold runs ("YgP", or "P" "IP" "f")
+ * come right before a bold heading on the same line (single-column pamphlets). Otherwise {line, code: null}.
+ */
+function splitLeadingCode(line) {
+  let k = 0;
+  while (k < line.items.length && k < 4 && !line.items[k].bold && /^[A-Za-z0-9]{1,7}$/.test(line.items[k].str.trim())) k++;
+  if (!k || k >= line.items.length || !line.items[k].bold) return { line, code: null };
+  const items = line.items.slice(k);
+  const code = line.items.slice(0, k).map((i) => i.str.trim()).join('');
+  return { line: { ...line, items, x0: items[0].x0, text: items.map((i) => i.str).join(' ') }, code: GUTTER_CODE.test(code) ? code : null };
+}
+
 function lineText(items) {
   return groupLines(items)[0]?.text || '';
 }
@@ -57,7 +96,10 @@ export function findReportEntries(pages, { maxChars = MAX_DESCRIPTION_CHARS } = 
   const prepared = pages.map((p) => {
     const items = p.items.filter((it) => Math.abs(it.angle) < 0.05 && it.y0 > MARGIN && it.y1 < p.height - MARGIN && it.str.trim());
     const split = p.width * 0.5; // column gutter; later pieces of a long left-column line stay left
-    return { ...p, sides: [items.filter((it) => it.x0 < split), items.filter((it) => it.x0 >= split)] };
+    // One wide column: many runs cross the middle of the page. Two columns: almost nothing does.
+    const crossing = items.filter((it) => it.x0 < split - 5 && it.x1 > split + 5).length;
+    const single = items.length > 0 && crossing / items.length > SINGLE_COLUMN_SHARE;
+    return { ...p, sides: single ? [items, []] : [items.filter((it) => it.x0 < split), items.filter((it) => it.x0 >= split)] };
   });
 
   // Words that appear unhyphenated anywhere, for line-break hyphenation decisions.
@@ -71,10 +113,12 @@ export function findReportEntries(pages, { maxChars = MAX_DESCRIPTION_CHARS } = 
   const startsBySide = [[], []];
   for (const p of prepared) {
     p.sides.forEach((items, side) => {
-      for (const line of groupLines(items)) {
+      for (const raw of groupLines(items)) {
+        // The unit code can share the heading's line (single-column pamphlets): look past it.
+        const { line } = splitLeadingCode(raw);
         const first = line.items[0];
         if (!first?.bold || isShouting(line.text)) continue;
-        if (DASH.test(boldPrefix(line).text)) startsBySide[side].push(first.x0);
+        if (boldHeading(line).hasDash) startsBySide[side].push(first.x0);
       }
     });
   }
@@ -119,7 +163,7 @@ export function findReportEntries(pages, { maxChars = MAX_DESCRIPTION_CHARS } = 
       // Gutter codes: small non-bold runs to the left of the unit text column.
       // A code can be several runs ("Yw" + subscript "p", "T" + "RPl"), so read
       // the gutter line by line and glue each line's runs together.
-      const inGutter = (it) => !it.bold && it.x1 < ux - 8 && it.fontSize < 9.8;
+      const inGutter = (it) => !it.bold && it.x1 < ux - GUTTER_GAP && (it.fontSize < 9.8 || /^[A-Za-z0-9]{1,7}$/.test(it.str.trim()));
       const gutterItems = rawItems.filter(inGutter);
       const gutter = groupLines(gutterItems, { tolerance: 0.8 })
         .map((l) => ({ str: l.text.replace(/\s+/g, ''), x0: l.x0, x1: l.x1, y0: Math.min(...l.items.map((i) => i.y0)) }))
@@ -133,7 +177,7 @@ export function findReportEntries(pages, { maxChars = MAX_DESCRIPTION_CHARS } = 
         for (const g of gutter) {
           if (used.has(g)) continue;
           const dy = g.y0 - line.y0;
-          if (dy < -4 || dy > 16 || g.x0 < line.x0 - 65 || g.x1 > line.x0 - 8) continue;
+          if (dy < -4 || dy > 16 || g.x0 < line.x0 - 65 || g.x1 > line.x0 - GUTTER_GAP) continue;
           if (!best || Math.abs(dy - 7) < Math.abs(best.dy - 7)) best = { g, dy };
         }
         if (!best) return null;
@@ -141,7 +185,8 @@ export function findReportEntries(pages, { maxChars = MAX_DESCRIPTION_CHARS } = 
         return best.g.str.trim();
       };
 
-      for (const line of groupLines(textItems)) {
+      for (const rawLine of groupLines(textItems)) {
+        const { line, code: leadCode } = splitLeadingCode(rawLine);
         const first = line.items[0];
         const margin = line.x0 < ux - 20;
 
@@ -164,8 +209,15 @@ export function findReportEntries(pages, { maxChars = MAX_DESCRIPTION_CHARS } = 
         }
 
         if (first.bold && !isShouting(line.text)) {
-          const bp = boldPrefix(line);
-          const hasDash = DASH.test(bp.text);
+          const heading = boldHeading(line);
+          const { bp, hasDash } = heading;
+          // A heading line that has a code of its own starts a unit: bold text before it was a section heading.
+          const ownCode = pending && hasDash ? leadCode || codeFor(line) : null;
+          if (ownCode) {
+            pending = null;
+            startEntry(p.pageNumber, [bp.text.split(DASH)[0].trim() + '—'], afterHeadingDash(heading), ownCode);
+            continue;
+          }
           if (pending && !hasDash && first.bold) {
             pending.lines.push(bp.text);
             if (pending.lines.length > 4) { current?.lines.push(...pending.lines); pending = null; }
@@ -173,25 +225,26 @@ export function findReportEntries(pages, { maxChars = MAX_DESCRIPTION_CHARS } = 
           }
           if (pending && hasDash) {
             const full = [...pending.lines, bp.text];
-            const after = lineText(line.items.slice(bp.items.length));
-            const tail = bp.text.split(DASH)[1]?.trim();
-            startEntry(p.pageNumber, full.map((t) => t.split(DASH)[0] + (DASH.test(t) ? '—' : '')), [tail, after].filter(Boolean).join(' '), pending.code);
+            startEntry(p.pageNumber, full.map((t) => t.split(DASH)[0] + (DASH.test(t) || t === bp.text ? '—' : '')), afterHeadingDash(heading), pending.code);
             pending = null;
             continue;
           }
           if (hasDash) {
             const before = bp.text.split(DASH)[0].trim();
-            const tail = bp.text.slice(bp.text.search(DASH) + 1).trim();
-            const after = lineText(line.items.slice(bp.items.length));
-            startEntry(p.pageNumber, [before + '—'], [tail, after].filter(Boolean).join(' '), codeFor(line));
+            startEntry(p.pageNumber, [before + '—'], afterHeadingDash(heading), leadCode || codeFor(line));
             continue;
           }
           // Bold start without a dash yet: maybe a heading that wraps.
-          pending = { lines: [bp.text], code: codeFor(line) };
+          pending = { lines: [bp.text], code: leadCode || codeFor(line) };
           continue;
         }
 
-        if (pending) {
+        if (pending?.code) {
+          // Bold name with a unit code and NO dash, then roman text: a heading written without "—"
+          // ("Pikes Peak Granite" + description), the way the plate legend writes it.
+          startEntry(p.pageNumber, pending.lines, null, pending.code);
+          pending = null;
+        } else if (pending) {
           // Not a heading after all: its text belongs to whatever came before.
           if (current) current.lines.push(...pending.lines);
           pending = null;

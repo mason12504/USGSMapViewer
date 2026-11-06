@@ -127,3 +127,75 @@ describe('plate helpers', () => {
     expect(mergeSplitCodes([t, r], new Set(['Qa'])).map((i) => i.str)).toEqual(['T', 'RPl']);
   });
 });
+
+describe('findReportEntries: one wide column (SIM-style pamphlet)', () => {
+  // Code in the left gutter at x=120, bold name at x=162, description hanging at x=194; the dash is roman type.
+  // Body lines are single runs that run across the middle of the page, which is what marks one column.
+  const body = (str, y) => item(str, 194, y, { w: 300 });
+  const singleColumn = () => [
+    item('Pg', 120, 100),
+    item('Garo Formation (Permian)', 162, 100, { bold: true }),
+    item('—Mapped only in South Park.', 300, 100, { w: 190 }),
+    body('Red to pink sandstone and conglomerate; calcareous.', 112),
+    body('Thickness is approximately 70 m', 124),
+    item('PIPf', 120, 150),
+    item('Fountain Formation (Cisuralian and', 162, 150, { bold: true }),
+    item('Pennsylvanian)', 162, 162, { bold: true }),
+    item('—Mapped only in Denver Basin.', 300, 162, { w: 190 }),
+    body('Red to reddish-brown arkosic sandstone.', 174),
+  ];
+
+  it('reads a page whose lines cross the middle as one column, with the dash after the bold name', () => {
+    const { entries } = findReportEntries([page(singleColumn())]);
+    expect(entries.map((e) => e.code)).toEqual(['Pg', 'PIPf']);
+    expect(entries[0]).toMatchObject({ name: 'Garo Formation', ageText: 'Permian' });
+    expect(entries[0].text).toBe('Mapped only in South Park. Red to pink sandstone and conglomerate; calcareous. Thickness is approximately 70 m');
+    expect(entries[1]).toMatchObject({ name: 'Fountain Formation', ageText: 'Cisuralian and Pennsylvanian' });
+    expect(entries[1].text).toBe('Mapped only in Denver Basin. Red to reddish-brown arkosic sandstone.');
+  });
+
+  it('a code that shares the heading line and ends past the usual gutter is still its code', () => {
+    const items = [
+      item('YgPcp', 134, 100, { w: 31 }), // ends at 165, past the heading column of other pages
+      item('Pikes Peak coarse-grained phase', 174, 100, { bold: true }),
+      item('—Light-pink seriate granite.', 330, 100, { w: 150 }),
+      body('More text on the next line.', 112),
+    ];
+    const { entries } = findReportEntries([page(items)]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].code).toBe('YgPcp');
+  });
+
+  it('a bold name with a code but no dash (written like the plate legend) starts a unit; a section heading does not', () => {
+    const items = [
+      // (one dashed heading on the page tells the reader where headings start)
+      item('Yg', 120, 50),
+      item('Monzogranite (Mesoproterozoic)', 162, 50, { bold: true, w: 140 }),
+      item('—Pink granite.', 330, 50, { w: 60 }),
+      item('Rocks of the Routt Plutonic Suite', 142, 80, { bold: true, w: 200 }),
+      item('Xqg', 120, 100),
+      item('Monzogranite and granodiorite', 162, 100, { bold: true, w: 160 }),
+      body('Medium-grained, gray to pink, equigranular rock.', 112),
+      body('Foliated near contacts.', 124),
+      item('Xqd', 120, 150),
+      item('Quartz diorite', 162, 150, { bold: true }),
+      body('Dark-gray, medium-grained quartz diorite.', 162),
+    ];
+    const { entries } = findReportEntries([page(items)]);
+    expect(entries.map((e) => [e.code, e.name])).toEqual([['Yg', 'Monzogranite'], ['Xqg', 'Monzogranite and granodiorite'], ['Xqd', 'Quartz diorite']]);
+    expect(entries[1].text).toBe('Medium-grained, gray to pink, equigranular rock. Foliated near contacts.');
+  });
+
+  it('a section heading right before a unit is not glued onto the unit name', () => {
+    const items = [
+      item('Tertiary Sedimentary Rocks of the Front Range', 162, 80, { bold: true, w: 250 }),
+      item('Tg', 120, 100),
+      item('Gravel deposits (Pliocene? and Miocene?)', 162, 100, { bold: true }),
+      item('—Boulder gravel on ridges.', 380, 100, { w: 110 }),
+      body('Estimated thickness 20 m', 112),
+    ];
+    const { entries } = findReportEntries([page(items)]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ code: 'Tg', name: 'Gravel deposits' });
+  });
+});

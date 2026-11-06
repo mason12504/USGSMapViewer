@@ -56,3 +56,23 @@ describe('fixKnownTerms', () => {
     expect(fixKnownTerms('light-gray sand')).toBe('light-gray sand');
   });
 });
+
+describe('isAgeOnlyName', () => {
+  it('is true for age labels only', async () => {
+    const { isAgeOnlyName } = await import('../../src/lib/legend/legend.js');
+    expect(isAgeOnlyName('Paleocene')).toBe(true);
+    expect(isAgeOnlyName('Late Cretaceous')).toBe(true);
+    expect(isAgeOnlyName('Upper and Lower Cambrian')).toBe(true);
+    expect(isAgeOnlyName('Pikes Peak Granite')).toBe(false);
+    expect(isAgeOnlyName('Tertiary volcanics')).toBe(false);
+    expect(isAgeOnlyName('')).toBe(false);
+  });
+});
+
+describe('isSwatchCode', () => {
+  it('takes codes with a capital inside ("YgPcp") along with ordinary ones', async () => {
+    const { isSwatchCode } = await import('../../src/lib/legend/legend.js');
+    for (const c of ['Qa', 'af', 'TRPl', 'YgP', 'YgPcp', 'YgPf', 'YgRm']) expect(isSwatchCode(c), c).toBe(true);
+    for (const c of ['PV', 'MC', 'unit']) expect(isSwatchCode(c), c).toBe(false);
+  });
+});
