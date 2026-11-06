@@ -36,8 +36,11 @@ export function loadConfig(env = process.env) {
   // Where `npm run scan:ai` leaves resolved.json per scanned map (read-only here; no API involved).
   const scansDir = env.SCANS_DIR || path.resolve('.lab/scan');
 
+  // The map library: PDFs the app can open by URL (/mapviewer/:id) and the catalog lists.
+  const libraryDir = env.MAP_LIBRARY_DIR || path.resolve('map_library');
+
   if (mock) {
-    return { mode: 'mock', port, host, mockFile, model: env.ANTHROPIC_MODEL || DEFAULT_MODEL, recordDir: null, scansDir, ...spend };
+    return { mode: 'mock', port, host, mockFile, model: env.ANTHROPIC_MODEL || DEFAULT_MODEL, recordDir: null, scansDir, libraryDir, ...spend };
   }
 
   const root = env.PRIVATE_ROOT;
@@ -62,6 +65,7 @@ export function loadConfig(env = process.env) {
     model: secrets.ANTHROPIC_MODEL || env.ANTHROPIC_MODEL || DEFAULT_MODEL,
     recordDir,
     scansDir,
+    libraryDir,
     ...spend,
   };
   // Non-enumerable: invisible to JSON.stringify, console.log, and object spread.

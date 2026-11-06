@@ -1,12 +1,8 @@
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
-
-const PDF = path.resolve('fixtures/pikeview/OF-01-03_Pikeview_Geologic_Map.pdf');
 
 test.describe('Pikeview map', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.getByTestId('file-input').setInputFiles(PDF);
+    await page.goto('/mapviewer/pikeview');
     await expect(page.getByTestId('stat-units')).toHaveText('26 units');
   });
 

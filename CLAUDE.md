@@ -34,6 +34,7 @@ npm run lint
 npm run build
 npm run parse -- <pdf> [--json out.json]     # parse a PDF from the CLI
 npm run color:lab -- <pdf>                   # color-matching workbench → .lab/
+npm run merge-pdf -- <pamphlet.pdf> <plate.pdf> [out.pdf]   # pamphlet + plate as separate files -> one PDF (pamphlet first, plate last) → map_library/
 npm run scan -- <scan.pdf>                   # SCANNED map first pass, all local, no API → .lab/scan/
 npm run scan:ai -- <name> [--run]            # paid follow-up via the live API server; DRY RUN without --run
 npm run scan:color -- <name>                 # how well swatch colors agree with the labels (report, no API)
@@ -51,8 +52,8 @@ or the `/api/scans` and `/api/read-*` server routes. Paid steps are dry-run-firs
 src/lib/                 environment-agnostic parsing pipeline (runs in browser AND Node)
   document.js            whole publication: finds the plate page, attaches report text to its legend
   pipeline.js            orchestrator: page → {legend, labels, plateLabels, color, warnings}
-  report/descriptions.js report text (two columns) → full unit descriptions; matches them to the plate legend
-  pdf/textItems.js       positioned words from the text layer (+ bold detection)
+  report/descriptions.js report text (two columns, or one wide column per page) → full unit descriptions; matches them to the plate legend
+  pdf/textItems.js       positioned words from the text layer (+ bold detection; the FGDC age-symbol font is spelled out as letters: IP, TR, C)
   pdf/vectorShapes.js    filled paths, paints (solid/pattern), images, short strokes
   units/unitCodes.js     unit-code shape, age prefixes, subscript merging (Qt + ₁ → Qt1)
   legend/legend.js       legend entries: swatch + bold "Name (Age)—" + description
@@ -63,11 +64,18 @@ src/lib/                 environment-agnostic parsing pipeline (runs in browser 
                          colorCheck.js / applyColor.js: color evidence + click identification on scans (constants at the top)
 src/pdf/pdfjs.browser.js pdf.js setup for the browser (assets served locally, no CDN)
 src/hooks/useMapParser.js browser orchestration (parse → render → swatch previews)
-src/components/          UI
+src/App.jsx, src/pages/    routes: / (welcome + upload), /catalog (library cards), /mapviewer/:id (the explorer: MapViewerPage.jsx)
+src/components/          UI (NavBar on every page; MapViewer and friends are the contained explorer)
+src/libraryApi.js        browser calls for the map library
+map_library/             the user's PDFs (gitignored); optional catalog.json = {"file.pdf": {"id", "title"}}; .thumbs/ = card images;
+                         <folder>/{plate,pamphlet,merged}.pdf = a map added as two files (merged.pdf opens; same pair of SHA-256s = duplicate)
 server/                  Express API: mock/live modes; key only in live mode
+  library.js             /api/library: list, open by id, add one PDF or a plate+pamphlet pair (POST /pair), thumbnails; exact duplicates are not stored twice
+  mergePdf.js            pamphlet + plate -> one PDF (pdf-lib); used by the pair upload and `npm run merge-pdf`
   cache.js, usage.js     live mode only: response cache (.cache/anthropic) + daily call cap/ledger
 scripts/                 CLI tools (parse, color lab) + Node pdf.js helper
-tests/unit, tests/fixtures, tests/server, tests/e2e
+tests/unit, tests/fixtures, tests/server, tests/e2e (e2e opens maps by URL from a throwaway library, tests/.e2e-library,
+                         seeded from fixtures/ by tests/e2e/global-setup.js; stop your own dev server before running it)
 fixtures/pikeview/       real public map + expected-units.json (ground truth)
 fixtures/manitou/        whole report (46 pages) + plate as page 47, with expected-units.json
 fixtures/leadville-scan/ resolved.json of a scanned map: the result of PAID calls, kept so it is never re-bought

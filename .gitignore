@@ -30,5 +30,6 @@ npm-debug.log*
 # API response cache + daily usage ledger
 .cache/
 
-# Large input PDFs: the user's map library (not committed)
-map_library/*.pdf
+# The user's map library: big PDFs (also in per-map sub-folders), catalog.json and thumbnails stay local
+map_library/
+tests/.e2e-library/

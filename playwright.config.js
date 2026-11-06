@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 // server + the API server in MOCK mode (no key, no network needed).
 export default defineConfig({
   testDir: 'tests/e2e',
+  globalSetup: './tests/e2e/global-setup.js',
   timeout: 120_000,
   expect: { timeout: 60_000 },
   fullyParallel: false,
@@ -20,6 +21,6 @@ export default defineConfig({
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
-    env: { MOCK_ANTHROPIC: '1' },
+    env: { MOCK_ANTHROPIC: '1', MAP_LIBRARY_DIR: 'tests/.e2e-library' }, // a throwaway library, see global-setup.js
   },
 });

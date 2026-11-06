@@ -12,6 +12,7 @@ import {
 } from './anthropic.js';
 import { createCache, requestKey, sha256 } from './cache.js';
 import { createUsageTracker } from './usage.js';
+import { libraryRouter } from './library.js';
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // base64 payload cap
 const CODE_RE = /^[A-Z][A-Za-z]{0,6}[0-9]?$/;
@@ -37,8 +38,11 @@ export function createApp(config, { fetchImpl = fetch, log = console } = {}) {
   app.disable('x-powered-by');
   app.use(express.json({ limit: '12mb' }));
 
+  // The PDFs in map_library/: list, open by id, add (duplicates by SHA-256 are not stored twice), thumbnails.
+  app.use('/api/library', libraryRouter(config.libraryDir || path.resolve('map_library')));
+
   app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, mode: config.mode, model: config.model, usage: live ? usage.snapshot() : null, cache: live ? cache.enabled : null });
+    res.json({ ok: true, mode: config.mode, model: config.model, library: path.basename(config.libraryDir || 'map_library'), usage: live ? usage.snapshot() : null, cache: live ? cache.enabled : null });
   });
 
   // Results for a scanned map, found by the SHA-256 of the PDF's bytes (the browser computes it).

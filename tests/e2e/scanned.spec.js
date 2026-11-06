@@ -2,16 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
-// A real 17 MB scan, too big to keep in the repo. Needs the PDF in scripts/proposed/ and its
+// A real 17 MB scan, too big to keep in the repo. Needs the PDF in map_library/ and its
 // results in .lab/scan/ (npm run scan, npm run scan:ai); skipped when either is missing.
-const PDF = path.resolve('scripts/proposed/USGS_I-999_2-prnt.pdf');
+const PDF = path.resolve('map_library/USGS_I-999_2-prnt.pdf');
 const RESULTS = path.resolve('.lab/scan/USGS_I-999_2-prnt/resolved.json');
 test.skip(!fs.existsSync(PDF) || !fs.existsSync(RESULTS), 'scanned-map PDF or its saved results not present');
 
 test.describe('Scanned map from saved results', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.getByTestId('file-input').setInputFiles(PDF);
+    await page.goto('/mapviewer/leadville_scan');
     await expect(page.getByTestId('stat-units')).toHaveText('73 units', { timeout: 150_000 });
   });
 

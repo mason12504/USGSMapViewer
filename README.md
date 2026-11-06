@@ -40,7 +40,10 @@ setup (VS Code settings, private folder, first push). Then, in the dev container
 npm run dev          # http://localhost:5173 (forwarded to your PC)
 ```
 
-and drop in `fixtures/pikeview/OF-01-03_Pikeview_Geologic_Map.pdf`.
+and drop in `fixtures/pikeview/OF-01-03_Pikeview_Geologic_Map.pdf`. Dropped PDFs are saved in `map_library/`
+(never twice) and open at `/mapviewer/<id>`; `/catalog` lists everything in that folder. A map that comes as a separate plate and pamphlet: open "Is your map two files…" on the home page, pick both; they are kept in
+`map_library/<name>/` and merged into one PDF. To name a map, add it to
+`map_library/catalog.json`: `{ "OF-03-19.pdf": { "id": "manitou_springs", "title": "Manitou Springs" } }`.
 
 | Command | What |
 |---|---|
@@ -49,6 +52,7 @@ and drop in `fixtures/pikeview/OF-01-03_Pikeview_Geologic_Map.pdf`.
 | `npm run test:e2e` | Playwright: real UI in headless Chromium against the mock API |
 | `npm run lint` / `npm run build` | ESLint / production build |
 | `npm run parse -- <pdf>` | Parse from the CLI, print legend + stats |
+| `npm run merge-pdf -- <pamphlet> <plate> [out]` | Join a separate pamphlet and plate into one PDF for the library |
 | `npm run color:lab -- <pdf>` | Color workbench: accuracy for both strategies + debug images |
 
 ## Testing strategy

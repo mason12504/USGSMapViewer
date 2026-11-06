@@ -1,13 +1,10 @@
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
-// A whole publication: 46 report pages + the plate as page 47.
-const PDF = path.resolve('fixtures/manitou/OF-03-19.pdf');
+// A whole publication: 46 report pages + the plate as page 47 (seeded as 'manitou_springs' by global-setup.js).
 
 test.describe('Manitou Springs publication', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.getByTestId('file-input').setInputFiles(PDF);
+    await page.goto('/mapviewer/manitou_springs');
     await expect(page.getByTestId('stat-units')).toHaveText('48 units', { timeout: 120_000 });
   });
 
